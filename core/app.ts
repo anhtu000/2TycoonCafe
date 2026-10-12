@@ -12,6 +12,7 @@ import { GameplayTracker, PauseManager } from './pause';
 import { createPlatform, type Platform } from './platform';
 import type { SaveStore } from './save';
 import { Settings } from './settings';
+import { Rng } from './rng';
 import { defaultTheme, type Theme } from './theme';
 import { Viewport, type ViewportOptions } from './viewport';
 import { BootScene } from './scenes/BootScene';
@@ -31,10 +32,15 @@ export interface GameConfig {
   /** Key of the main gameplay scene. */
   playScene: string;
   /**
-   * Show the core main menu before play. Default true.
-   * For a clicker, false gets the player to the first reward faster (CLAUDE.md 4.2).
+   * When the menu shows before play. Default true.
+   *   true:        always
+   *   false:       never; the game opens straight into playScene
+   *   'returning': only for players who already have a save. New players go straight to play,
+   *                so the first reward comes within seconds (CLAUDE.md 4.2)
    */
-  menu?: boolean;
+  menu?: boolean | 'returning';
+  /** Key of the game's own menu scene, used instead of the core menu. */
+  menuScene?: string;
   /** Queue the game's assets. They load behind the loading bar. */
   preload?: (scene: Phaser.Scene) => void;
   save: SaveStore<any>;
@@ -43,6 +49,24 @@ export interface GameConfig {
   ads?: Partial<AdOptions>;
   theme?: Partial<Theme>;
   viewport?: ViewportOptions;
+}
+
+/**
+ * Big moments in play, for portal happy-time, clip capture and later analytics (CLAUDE.md 5c, A2).
+ * The game emits them with app.moments.emit(...); core and tools listen.
+ */
+export interface MomentEvents extends Record<string, unknown[]> {
+  /** A rare result. tier is the rarity index, odds the chance of that roll (0.002 = 1 in 500). */
+  rarePull: [{ tier: number; odds: number; label?: string }];
+  merge: [{ level: number }];
+  collectionNew: [{ id: string }];
+  finish: [{ runMs: number }];
+}
+
+class Moments extends Emitter<MomentEvents> {
+  emit<K extends keyof MomentEvents>(event: K, ...args: MomentEvents[K]) {
+    super.emit(event, ...args);
+  }
 }
 
 /**
@@ -62,6 +86,16 @@ class App extends Emitter<{ language: [lang: string] }> {
   gameplay!: GameplayTracker;
   viewport!: Viewport;
   theme: Theme = defaultTheme;
+  /**
+   * Seeded random numbers for gameplay (CLAUDE.md 5c, A1). Never call Math.random() for gameplay.
+   * ?seed=123 fixes the seed in the web build only, so a rare moment can be replayed.
+   */
+  rng!: Rng;
+  /** Seed used for this session. */
+  seed = 0;
+  readonly moments = new Moments();
+  /** ?clean: no ad buttons, no toasts, no debug box, no mouse cursor. For recording videos (CLAUDE.md 5c, A4). */
+  clean = false;
 
   /** Translate a key of the current language. */
   t(key: string, vars?: Record<string, string | number>) {
@@ -98,24 +132,45 @@ class App extends Emitter<{ language: [lang: string] }> {
     from.scene.launch('Pause', { from: from.scene.key });
   }
 
-  /** Goes back to the main menu from anywhere. Shows a midgame ad at this natural break. */
-  async toMenu() {
+  /** Key of the menu scene, or null when the game has no menu. */
+  get menuKey(): string | null {
+    if (this.config.menu === false) return null;
+    return this.config.menuScene ?? 'Menu';
+  }
+
+  /** First scene after loading: the menu, or play for a new player when menu is 'returning'. */
+  startScene(): string {
+    const menu = this.menuKey;
+    if (!menu) return this.config.playScene;
+    if (this.config.menu === 'returning' && this.save.isNewPlayer) return this.config.playScene;
+    return menu;
+  }
+
+  /**
+   * Goes back to the main menu from anywhere. No ad here: CrazyGames does not allow a midgame ad
+   * on a navigation button (publishing brief, section 8). Show ads at real breaks instead (level end, new run).
+   */
+  toMenu() {
     this.gameplay.stop();
     this.save.flush();
     const manager = this.game.scene;
-    const target = this.config.menu === false ? this.config.playScene : 'Menu';
+    const target = this.menuKey ?? this.config.playScene;
     for (const s of manager.getScenes(false)) {
       const key = s.scene.key;
       if (key !== target && (manager.isActive(key) || manager.isPaused(key) || manager.isSleeping(key))) manager.stop(key);
     }
     manager.start(target);
-    await this.ads.midgame();
   }
 
   async start(config: GameConfig) {
     this.config = config;
     this.theme = { ...defaultTheme, ...config.theme };
     const params = new URLSearchParams(location.search);
+    const seedParam = Number(params.get('seed'));
+    this.seed = __TARGET__ === 'web' && seedParam > 0 ? seedParam : (Date.now() ^ (performance.now() * 1000)) >>> 0;
+    this.rng = new Rng(this.seed);
+    this.clean = params.has('clean');
+    if (this.clean) document.documentElement.classList.add('clean');
 
     const parent = document.getElementById('game')!;
     this.viewport = new Viewport(parent, config.viewport);
@@ -154,7 +209,7 @@ class App extends Emitter<{ language: [lang: string] }> {
     if (fpsParam > 0) Object.assign(fps, { target: fpsParam, forceSetTimeOut: true });
 
     const scenes: Phaser.Types.Scenes.SceneType[] = [BootScene, PauseScene, ...config.scenes];
-    if (config.menu !== false) scenes.splice(1, 0, MenuScene);
+    if (config.menu !== false && !config.menuScene) scenes.splice(1, 0, MenuScene);
 
     this.game = new Phaser.Game({
       type: Phaser.AUTO,
@@ -174,13 +229,14 @@ class App extends Emitter<{ language: [lang: string] }> {
     this.wirePause();
     this.startAutosave(config.autosaveSec ?? 5);
 
-    if (params.has('debug')) this.toggleDebug();
+    if (params.has('debug') && !this.clean) this.toggleDebug();
   }
 
   private debug: DebugOverlay | null = null;
 
   /** Shows or hides the debug box. Also: ?debug in the URL, or tap the menu title 5 times. */
   toggleDebug() {
+    if (this.clean) return;
     if (this.debug) {
       this.debug.destroy();
       this.debug = null;

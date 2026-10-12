@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
 import { app } from '../app';
+import { formatCountdown } from '../format';
 import { toast } from './toast';
 import { Button } from './button';
-import { playIcon, soundOffIcon, soundOnIcon } from './icons';
+import { soundOffIcon, soundOnIcon, videoIcon } from './icons';
 
 /** Square mute toggle. Follows the portal's forced mute and greys out while it is on. */
 export function soundButton(scene: Phaser.Scene, x: number, y: number, size = 96) {
@@ -31,6 +32,11 @@ export interface RewardButtonOptions {
   fontSize?: number;
   /** Runs only when the player has earned the reward. */
   onReward: () => void;
+  /**
+   * Seconds until the reward can be used again (0 = ready). While it is above 0
+   * the button is greyed out and shows a countdown instead of its label.
+   */
+  cooldown?: () => number;
 }
 
 /**
@@ -41,7 +47,7 @@ export interface RewardButtonOptions {
 export function rewardButton(scene: Phaser.Scene, x: number, y: number, options: RewardButtonOptions) {
   const button: Button = new Button(scene, x, y, {
     label: options.label,
-    icon: playIcon,
+    icon: videoIcon,
     width: options.width ?? 360,
     height: options.height ?? 96,
     fontSize: options.fontSize ?? 34,
@@ -58,9 +64,28 @@ export function rewardButton(scene: Phaser.Scene, x: number, y: number, options:
         const blocked = app.ads.lastOutcome === 'adblock';
         toast(scene, app.t(blocked ? 'core.adBlocked' : 'core.adUnavailable'));
       }
-      button.setVisible(app.ads.rewardedAvailable);
+      button.setVisible(app.ads.rewardedAvailable && !app.clean);
     },
   });
-  button.setVisible(app.ads.rewardedAvailable);
+  button.setVisible(app.ads.rewardedAvailable && !app.clean);
+
+  if (options.cooldown) {
+    const cooldown = options.cooldown;
+    let shown = '';
+    const refresh = () => {
+      if (!button.active || app.ads.isShowing) return;
+      const wait = Math.ceil(cooldown());
+      const text = wait > 0 ? app.t('core.readyIn', { t: formatCountdown(wait) }) : options.label;
+      if (text !== shown) {
+        shown = text;
+        button.setLabel(text);
+      }
+      const ready = wait <= 0;
+      if (button.isEnabled !== ready) button.setEnabled(ready);
+    };
+    scene.events.on(Phaser.Scenes.Events.UPDATE, refresh);
+    button.once(Phaser.GameObjects.Events.DESTROY, () => scene.events.off(Phaser.Scenes.Events.UPDATE, refresh));
+    refresh();
+  }
   return button;
 }
