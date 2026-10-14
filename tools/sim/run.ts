@@ -23,7 +23,7 @@ for (const profile of Object.values(PROFILES)) {
     const med = (f: (r: RunReport) => number) => pct(runs.map(f), 50);
     console.log(
       `  buy gap p90: first10 ${pct(runs.map((r) => r.maxBuyGap.first10), 90).toFixed(0)}s 10-30 ${pct(runs.map((r) => r.maxBuyGap.to30), 90).toFixed(0)}s 30+ ${pct(runs.map((r) => r.maxBuyGap.after30), 90).toFixed(0)}s | ` +
-        `served ${med((r) => r.served)} lost ${med((r) => r.lost)} hand ${med((r) => r.handServed)} vip ${med((r) => r.vips)} hearts ${med((r) => r.hearts)} staff ${med((r) => r.adopts)}`,
+        `served ${med((r) => r.served)} lost ${med((r) => r.lost)} hand ${med((r) => r.handServed)} vip ${med((r) => r.vips)} staff ${med((r) => r.adopts)}`,
     );
     const whats = new Set(runs.flatMap((r) => r.milestones.map((m) => m.what)));
     const rows: [string, number][] = [];

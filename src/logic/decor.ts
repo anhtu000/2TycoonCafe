@@ -1,4 +1,5 @@
-// Decorations (CLAUDE.md 5): bought with hearts, each one sits in a fixed spot of its floor
+// Decorations (CLAUDE.md 5a): bought with coins or unlocked with a rewarded ad (one currency, Poki guide 7.1).
+// Each one sits in a fixed spot of its floor
 // and adds a small tip bonus to the whole cafe. Plain data, no Phaser.
 import { contentChecker } from '../../core/content.ts';
 
@@ -12,8 +13,6 @@ export interface DecorItem {
 
 export interface DecorDef {
   bonusPerItem: number;
-  /** Hearts for one rewarded ad in the decor shop. */
-  adHearts: number;
   items: DecorItem[];
 }
 

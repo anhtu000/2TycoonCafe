@@ -21,10 +21,10 @@ import {
   type ViewportInfo,
 } from '@core';
 import { content, decorContent } from '../game/content';
-import { addHearts, boostCooldown, breakAd, dailyClaimable, mainCafe, noteAnimal, openDaily, takeDailyOffer } from '../game/meta';
+import { AD_TIMERS, boostCooldown, breakAd, dailyClaimable, mainCafe, noteAnimal, openDaily, takeDailyOffer } from '../game/meta';
 import { Cafe, newRunState, type AdoptResult, type CafeEvent } from '../logic/cafe.ts';
 import { decorTipMult } from '../logic/decor.ts';
-import { boltIcon, bookIcon, coinIcon, COIN_COLOR, heartIcon, HEART_COLOR, menuIcon, pawIcon, plantIcon, seatIcon, starIcon, starSlotIcon, stopwatchIcon, trophyIcon, UPGRADE_ICONS } from '../render/icons';
+import { boltIcon, bookIcon, coinIcon, COIN_COLOR, menuIcon, pawIcon, plantIcon, seatIcon, starIcon, starSlotIcon, stopwatchIcon, trophyIcon, UPGRADE_ICONS } from '../render/icons';
 import { animalTexture, itemTexture } from '../render/textures';
 import { save } from '../save';
 import { Floor } from '../ui/Floor';
@@ -52,8 +52,6 @@ export class PlayScene extends BaseScene {
   private coinIcon!: Phaser.GameObjects.Image;
   private coins!: Phaser.GameObjects.Text;
   private rate!: Phaser.GameObjects.Text;
-  private heartIcon!: Phaser.GameObjects.Image;
-  private hearts!: Phaser.GameObjects.Text;
   private stars: Phaser.GameObjects.Image[] = [];
   private goal!: Phaser.GameObjects.Text;
   private goalBar!: Phaser.GameObjects.Graphics;
@@ -69,7 +67,8 @@ export class PlayScene extends BaseScene {
   private queue: (() => Panel | null)[] = [];
 
   constructor() {
-    super('Play', { gameplay: true });
+    // gameplayStart goes out at the first tap, not when loading ends (Poki guide 5.1).
+    super('Play', { gameplay: 'firstInput' });
   }
 
   protected build() {
@@ -77,6 +76,7 @@ export class PlayScene extends BaseScene {
     this.stars = [];
     this.queue = [];
     this.panel = null;
+    this.leaving = false;
     if (save.data.mode === 'timed' && !save.data.timed) save.data.mode = 'main';
     this.cafe = save.data.mode === 'timed' ? new Cafe(content, save.data.timed!) : mainCafe();
     const cafe = this.cafe;
@@ -106,9 +106,6 @@ export class PlayScene extends BaseScene {
     setShape(this.coinIcon, 'coin|44', 44, 44, (g) => coinIcon(g, 44, COIN_COLOR));
     this.coins = this.add.text(0, 0, '0', { ...font, fontStyle: '900', fontSize: 48, color: '#ffffff' }).setOrigin(0, 0.5).setDepth(31);
     this.rate = this.add.text(0, 0, '', { ...font, fontStyle: '700', fontSize: 24, color: '#e3cbb8' }).setOrigin(0, 0.5).setDepth(31);
-    this.heartIcon = this.add.image(0, 0, '__DEFAULT').setDepth(31);
-    setShape(this.heartIcon, 'heart|30', 30, 30, (g) => heartIcon(g, 30, HEART_COLOR));
-    this.hearts = this.add.text(0, 0, '0', { ...font, fontStyle: '900', fontSize: 26, color: '#ffc2cc' }).setOrigin(0, 0.5).setDepth(31);
     for (let i = 0; i < 5; i++) this.stars.push(this.add.image(0, 0, '__DEFAULT').setDepth(31));
     this.goal = this.add.text(0, 0, '', { ...font, fontStyle: '900', fontSize: 24, color: '#fff3e0' }).setOrigin(0.5).setDepth(31);
     this.goalBar = this.add.graphics().setDepth(31);
@@ -129,7 +126,7 @@ export class PlayScene extends BaseScene {
       boost: () => this.boost(),
       freeTarget: () => this.freeTarget(),
       onFree: (id) => this.freeUpgrade(id),
-      freeCooldown: () => this.cafe.rewardLeft('freeUpgrade'),
+      freeCooldown: () => (AD_TIMERS ? this.cafe.rewardLeft('freeUpgrade') : 0),
     });
 
     this.tut = new Tutorial(this, {
@@ -140,8 +137,9 @@ export class PlayScene extends BaseScene {
     });
 
     this.tick = new FixedStep(STEP_MS, (sec) => this.step(sec));
+    // ESC pauses (menu) and resumes (Poki guide 6). Panels close themselves on ESC.
     this.input.keyboard?.on('keydown-ESC', () => {
-      if (!this.panel && !this.tut.active) this.openMenu();
+      if (!this.panel) this.time.delayedCall(0, () => this.openMenu());
     });
 
     // Test hook for the playtest bot (web build only).
@@ -168,13 +166,12 @@ export class PlayScene extends BaseScene {
       shopRect = [0, shopY, vp.width, Math.min(shopH, vp.height - shopY - 10), true];
       this.drawTopBar(vp.width, s.y + TOP_PORTRAIT - 6);
       const y1 = s.y + 52;
-      this.menuBtn.setPosition(s.x + 54, y1);
-      this.coinIcon.setPosition(s.x + 130, y1);
-      this.coins.setPosition(s.x + 160, y1 - 4);
-      this.rate.setPosition(s.x + 162, y1 + 36);
-      this.stars.forEach((st, i) => st.setPosition(vp.width - s.x - 210 + i * 44, y1 - 8));
-      this.heartIcon.setPosition(vp.width - s.x - 210, y1 + 34);
-      this.hearts.setPosition(vp.width - s.x - 190, y1 + 34);
+      // The Poki button sits top-left on phones: keep that corner empty, menu goes top-right.
+      this.menuBtn.setPosition(vp.width - s.x - 54, y1);
+      this.coinIcon.setPosition(s.x + 140, y1);
+      this.coins.setPosition(s.x + 170, y1 - 4);
+      this.rate.setPosition(s.x + 172, y1 + 36);
+      this.stars.forEach((st, i) => st.setPosition(vp.width - s.x - 300 + i * 42, y1 - 8));
       this.goalRect = { x: vp.width / 2, y: s.y + 132, w: vp.width - 80 };
       this.clock.setPosition(vp.width - s.x - 24, s.y + 132);
     } else {
@@ -188,15 +185,14 @@ export class PlayScene extends BaseScene {
       shopRect = [floorsW + 12, 16, vp.width - floorsW - 24, vp.height - 32, false];
       this.drawTopBar(floorsW, top - 6);
       const y1 = 44;
-      this.menuBtn.setPosition(52, y1);
+      // Top-left stays free for the Poki button; the menu sits at the right end of the bar.
+      this.menuBtn.setPosition(floorsW - 54, y1);
       this.coinIcon.setPosition(124, y1);
       this.coins.setPosition(154, y1 - 8);
       this.rate.setPosition(156, y1 + 26);
-      this.heartIcon.setPosition(370, y1);
-      this.hearts.setPosition(390, y1);
-      const sx = floorsW - 238;
+      const sx = floorsW - 330;
       this.stars.forEach((st, i) => st.setPosition(sx + i * 44, y1 - 14));
-      this.goalRect = { x: floorsW - 150, y: y1 + 24, w: 280 };
+      this.goalRect = { x: floorsW - 240, y: y1 + 24, w: 280 };
       this.clock.setPosition(floorsW / 2 + 110, y1);
     }
     this.shop.layout(...shopRect);
@@ -247,9 +243,7 @@ export class PlayScene extends BaseScene {
           const top = f.customerTop(e.customer.id);
           if (top) {
             floatText(this, top.x, top.y - 10, `+${formatNumber(e.coins)}`, { color: e.hand ? '#ffd34d' : '#ffffff', size: e.hand ? 40 : 32 });
-            if (e.hearts > 0) floatText(this, top.x + 46, top.y + 16, `+${e.hearts}`, { color: '#ff8fa3', size: 26, rise: 60 });
           }
-          if (e.hearts > 0 && this.cafe.s.mode === 'main') addHearts(e.hearts);
           if (e.vipBonus > 0) {
             if (top) burst(this, top.x, top.y + 20, 0xffd34d, 24, 520);
             toast(this, app.t('toast.vip', { n: formatNumber(e.vipBonus) }));
@@ -327,8 +321,6 @@ export class PlayScene extends BaseScene {
     toast(this, app.t('toast.floorOpen', { floor: name }));
     app.moments.emit('collectionNew', { id: `floor.${content.cafe.floors[n].id}` });
     this.refreshStars();
-    // A natural break: Poki may show an ad before play goes on.
-    void breakAd('milestone');
   }
 
   private unlockItem(item: string) {
@@ -460,50 +452,50 @@ export class PlayScene extends BaseScene {
     this.bought(id);
   }
 
-  /** Rewarded boost card: Rush Hour, or a free helper when Rush Hour is cooling down. */
+  /**
+   * Rewarded boost card. Poki manages ad frequency, so there the offers follow the game state instead of
+   * timers (Poki guide 7.1): a free helper when a station is empty and the player cannot afford one yet,
+   * otherwise Rush Hour whenever it is not running. Other portals keep the 5-minute cooldowns (CLAUDE.md 3).
+   */
   private boost(): Boost | null {
     const cafe = this.cafe;
     if (cafe.staffCount() === 0 || !app.ads.rewardedAvailable || app.clean) return null;
     const rushOn = cafe.s.rushLeft > 0;
-    const rushWait = cafe.rewardLeft('rush');
-    const adoptWait = cafe.rewardLeft('freeAdopt');
-    if (!rushOn && rushWait <= 0) {
-      return {
-        id: 'rush',
-        name: app.t('boost.rush'),
-        desc: app.t('boost.rushDesc'),
-        icon: boltIcon,
-        wait: 0,
-        onReward: () => {
-          cafe.startRush();
-          cafe.startCooldown('rush', boostCooldown());
-          app.audio.play('reward');
-          this.tut.complete('rush');
-        },
-      };
-    }
-    if (adoptWait <= 0) {
-      return {
-        id: 'freeAdopt',
-        name: app.t('boost.adopt'),
-        desc: app.t('boost.adoptDesc'),
-        icon: pawIcon,
-        wait: 0,
-        onReward: () => {
-          cafe.startCooldown('freeAdopt', boostCooldown());
-          this.adopt('free');
-        },
-      };
-    }
-    return {
+    const rush = (wait: number): Boost => ({
       id: 'rush',
       name: app.t('boost.rush'),
       desc: app.t('boost.rushDesc'),
       icon: boltIcon,
-      wait: rushOn ? 0 : Math.min(rushWait, adoptWait),
+      wait: rushOn ? 0 : wait,
       blocked: rushOn ? app.t('boost.rushOn', { t: formatCountdown(cafe.s.rushLeft) }) : undefined,
-      onReward: () => undefined,
+      onReward: () => {
+        if (rushOn) return;
+        cafe.startRush();
+        cafe.startCooldown('rush', boostCooldown());
+        app.audio.play('reward');
+        this.tut.complete('rush');
+      },
+    });
+    const freeAdopt: Boost = {
+      id: 'freeAdopt',
+      name: app.t('boost.adopt'),
+      desc: app.t('boost.adoptDesc'),
+      icon: pawIcon,
+      wait: 0,
+      onReward: () => {
+        cafe.startCooldown('freeAdopt', boostCooldown());
+        this.adopt('free');
+      },
     };
+    if (!AD_TIMERS) {
+      const needHelper = cafe.staffCount() < cafe.slotCount() && cafe.s.coins < cafe.adoptCost() && save.data.tickets === 0;
+      return needHelper && !rushOn ? freeAdopt : rush(0);
+    }
+    const rushWait = cafe.rewardLeft('rush');
+    const adoptWait = cafe.rewardLeft('freeAdopt');
+    if (!rushOn && rushWait <= 0) return rush(0);
+    if (adoptWait <= 0) return freeAdopt;
+    return rush(Math.min(rushWait, adoptWait));
   }
 
   // ---------- staff ----------
@@ -559,7 +551,7 @@ export class PlayScene extends BaseScene {
     }
     save.flush();
     this.time.delayedCall(900, async () => {
-      await breakAd('finish');
+      if (AD_TIMERS) await breakAd('finish');
       this.showPanel(() =>
         showFinish(this, cafe, {
           ms,
@@ -600,7 +592,6 @@ export class PlayScene extends BaseScene {
       this.coins.setText(formatNumber(coins));
     }
     this.rate.setText(app.t('hud.perSec', { n: formatNumber(Math.round(s.rate)) }));
-    this.hearts.setText(formatNumber(save.data.hearts));
     const stars = this.cafe.stars();
     this.goal.setText(this.goalText(stars));
     const { x, y, w } = this.goalRect;
@@ -620,8 +611,6 @@ export class PlayScene extends BaseScene {
     if (s.rushLeft > 0) this.rush.setText(app.t('hud.rush', { t: formatCountdown(s.rushLeft) }));
     this.clock.setVisible(s.mode === 'timed');
     if (s.mode === 'timed') this.clock.setText(formatClock(s.finishedAt ?? s.time));
-    this.hearts.setVisible(s.mode === 'main');
-    this.heartIcon.setVisible(s.mode === 'main');
   }
 
   // ---------- panels ----------
@@ -631,6 +620,7 @@ export class PlayScene extends BaseScene {
       this.queue.push(open);
       return;
     }
+    this.stopPlay();
     this.panel = open();
   }
 
@@ -638,14 +628,31 @@ export class PlayScene extends BaseScene {
     this.panel = null;
     const next = this.queue.shift();
     if (next) this.time.delayedCall(150, () => this.showPanel(next));
+    else this.time.delayedCall(0, () => this.resumePlay());
     this.shop.refresh(true);
   }
 
+  /** A window opens: the player stops playing (Poki: gameplayStop at every interruption). */
+  private stopPlay() {
+    app.gameplay.stop();
+  }
+
+  /**
+   * Back to the cafe after a window: commercialBreak, then gameplayStart (Poki guide 5.2).
+   * Before the first tap nothing is sent; the first tap starts play.
+   */
+  private async resumePlay() {
+    if (this.panel || !this.playStarted || this.leaving) return;
+    await breakAd('navigation');
+    if (!this.panel && this.scene.isActive()) app.gameplay.start();
+  }
+
   private openMenu() {
-    if (this.panel || this.tut.active) return;
+    if (this.panel) return;
     const timed = this.cafe.s.mode === 'timed';
     const entries = [
-      { label: app.t('menu.resume'), icon: icons.playIcon, onClick: () => this.shop.refresh(true) },
+      { label: app.t('menu.resume'), icon: icons.playIcon, onClick: () => undefined },
+      { label: app.audio.muted ? app.t('menu.soundOff') : app.t('menu.soundOn'), icon: app.audio.muted ? icons.soundOffIcon : icons.soundOnIcon, onClick: () => app.audio.toggle() },
       {
         label: app.t('menu.staff'),
         icon: bookIcon,
@@ -657,7 +664,7 @@ export class PlayScene extends BaseScene {
             {
               label: app.t('menu.decor'),
               icon: plantIcon,
-              onClick: () => this.showPanel(() => showDecor(this, () => this.applyDecor(), () => this.panelClosed())),
+              onClick: () => this.showPanel(() => showDecor(this, this.cafe, () => this.applyDecor(), () => this.panelClosed())),
             },
             { label: app.t('menu.daily'), icon: icons.giftIcon, badge: dailyClaimable(), onClick: () => this.showPanel(() => openDaily(this, this.cafe, () => this.refreshHud(), () => this.panelClosed())) },
           ]),
@@ -665,11 +672,18 @@ export class PlayScene extends BaseScene {
       ...(save.data.records.length ? [{ label: app.t('menu.records'), icon: trophyIcon, onClick: () => this.showPanel(() => showRecords(this, null, () => this.panelClosed())) }] : []),
       timed
         ? { label: app.t('menu.leaveTimed'), icon: icons.homeIcon, onClick: () => this.leaveTimed() }
-        : { label: app.t('menu.home'), icon: icons.homeIcon, onClick: () => app.toMenu() },
-    ];
-    // The menu closes before its entry runs, so an entry can open the next panel right away.
+        : app.menuKey
+          ? { label: app.t('menu.home'), icon: icons.homeIcon, onClick: () => app.toMenu() }
+          : null,
+    ].filter((e): e is NonNullable<typeof e> => e !== null);
+    // The menu closes before its entry runs, so an entry can open the next panel right away;
+    // play resumes only when no other window took its place.
+    this.stopPlay();
     this.panel = showGameMenu(this, entries, () => {
       this.panel = null;
+      this.time.delayedCall(0, () => {
+        if (!this.panel) this.panelClosed();
+      });
     });
   }
 
@@ -682,15 +696,22 @@ export class PlayScene extends BaseScene {
     if (this.cafe.s.mode === 'main') this.cafe.extraTips = decorTipMult(decorContent, save.data.decor);
   }
 
+  /** Set while the scene restarts into another run: nothing may resume play meanwhile. */
+  private leaving = false;
+
   private startTimed() {
+    this.leaving = true;
+    this.stopPlay();
     if (this.cafe.s.mode === 'main') save.data.mainLeftAt = Date.now();
     save.data.timed = newRunState(content, 'timed', app.rng.int(1, 2 ** 31 - 1));
     save.data.mode = 'timed';
     save.flush();
-    void breakAd('milestone').then(() => this.scene.restart());
+    void breakAd('navigation').then(() => this.scene.restart());
   }
 
   private leaveTimed() {
+    this.leaving = true;
+    this.stopPlay();
     save.data.mode = 'main';
     save.data.timed = null;
     save.flush();

@@ -80,7 +80,7 @@
   },
   "boost": {
     "rush": "Rush Hour",
-    "rushDesc": "Customers pay x2 for 60 s",
+    "rushDesc": "x2 coins for 60 s",
     "rushOn": "On: {t} left",
     "adopt": "Free Helper",
     "adoptDesc": "Adopt an animal for free",
@@ -102,16 +102,16 @@
   "tut": {
     "make": "Tap the coffee machine",
     "serve": "Tap the customer to serve",
-    "upgrade": "Level up Coffee: each cup pays more",
-    "tea": "Add matcha tea to the menu",
+    "upgrade": "Level up Coffee",
+    "tea": "Add Matcha Tea",
     "adopt": "Adopt a helper",
-    "helper": "Your helper makes and serves on its own. Serve by hand for bigger tips!",
-    "vip": "A VIP! Serve them yourself for a big tip",
-    "bakery": "Open the Bakery upstairs",
+    "helper": "Helpers work for you!",
+    "vip": "VIP! Serve them yourself",
+    "bakery": "Open the Bakery",
     "seat": "More seats, more customers",
-    "rush": "Rush Hour: customers pay double for a minute",
+    "rush": "Double coins for a minute",
     "gotIt": "Got it",
-    "notReady": "Make it first: tap the machine",
+    "notReady": "Tap the machine first",
     "space": "Tip: tap fast to make orders faster"
   },
   "adopt": {
@@ -160,14 +160,13 @@
     "daily": "Daily gift",
     "home": "Home",
     "leaveTimed": "Leave timed run",
-    "hearts": "{n} hearts"
+    "soundOn": "Sound: On",
+    "soundOff": "Sound: Off"
   },
   "decor": {
     "title": "Decor",
-    "info": "Each decoration: +3% tips everywhere",
-    "owned": "Owned",
-    "need": "Not enough hearts",
-    "ad": "+{n} hearts",
+    "info": "Each decoration: +3% tips",
+    "ad": "Free: {item}",
     "fern": "Fern",
     "clock": "Wall Clock",
     "lamp": "Pendant Lamp",
@@ -183,7 +182,6 @@
   },
   "daily": {
     "coins": "{n} min",
-    "hearts": "{n}",
     "ticket": "Helper"
   },
   "records": {
@@ -193,7 +191,6 @@
   },
   "toast": {
     "vip": "VIP tip! +{n}",
-    "hearts": "+{n} hearts",
     "ticket": "Free helper ready in the shop",
     "floorOpen": "{floor} is open!",
     "itemNew": "{item} is on the menu!",

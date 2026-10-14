@@ -1,10 +1,10 @@
 import Phaser from 'phaser';
-import { app, BaseScene, Button, formatNumber, icons, setShape, soundButton, type ViewportInfo } from '@core';
+import { app, BaseScene, Button, icons, soundButton, type ViewportInfo } from '@core';
 import { content } from '../game/content';
 import { breakAd, dailyClaimable, mainCafe, openDaily, takeDailyOffer } from '../game/meta';
 import game from '../game.json';
 import { newRunState } from '../logic/cafe.ts';
-import { bookIcon, heartIcon, HEART_COLOR, plantIcon, stopwatchIcon, trophyIcon } from '../render/icons';
+import { bookIcon, plantIcon, stopwatchIcon, trophyIcon } from '../render/icons';
 import { ANIMAL_ASPECT, animalTexture, roomTexture } from '../render/textures';
 import { save } from '../save';
 import { showDecor, showRecords, showStaffBook } from '../ui/panels';
@@ -24,8 +24,6 @@ export class HomeScene extends BaseScene {
   private giftBtn!: Button;
   private giftDot!: Phaser.GameObjects.Graphics;
   private soundBtn!: Button;
-  private heart!: Phaser.GameObjects.Image;
-  private hearts!: Phaser.GameObjects.Text;
   private busy = false;
 
   constructor() {
@@ -90,6 +88,7 @@ export class HomeScene extends BaseScene {
       this.panel(() =>
         showDecor(
           this,
+          mainCafe(),
           () => this.refresh(),
           () => {
             this.busy = false;
@@ -107,9 +106,6 @@ export class HomeScene extends BaseScene {
     this.giftDot.strokeCircle(0, 0, 12);
 
     this.soundBtn = soundButton(this, 0, 0, 88);
-    this.heart = this.add.image(0, 0, '__DEFAULT');
-    setShape(this.heart, 'heart|40', 40, 40, (g) => heartIcon(g, 40, HEART_COLOR));
-    this.hearts = this.add.text(0, 0, '', { ...font, fontStyle: '900', fontSize: 36, color: '#ffc2cc' }).setOrigin(1, 0.5);
     this.refresh();
     if (takeDailyOffer()) this.time.delayedCall(350, () => this.daily());
   }
@@ -122,8 +118,6 @@ export class HomeScene extends BaseScene {
     this.room.setTexture(roomTexture(this, 'coffee', rw / 2, (vp.height / 2) | 0, [])).setDisplaySize(rw, vp.height).setPosition((vp.width - rw) / 2, 0);
     this.shade.setSize(vp.width, vp.height);
     this.soundBtn.setPosition(s.x + 56, s.y + 56);
-    this.hearts.setPosition(vp.width - s.x - 24, s.y + 56);
-    this.heart.setPosition(this.hearts.x - this.hearts.width - 30, s.y + 56);
     const placeTiles = (x: number, y: number, rowH: number) =>
       this.tiles.forEach((b, i) => {
         const alone = i === this.tiles.length - 1 && i % 2 === 0;
@@ -157,7 +151,6 @@ export class HomeScene extends BaseScene {
   }
 
   private refresh() {
-    this.hearts.setText(formatNumber(save.data.hearts));
     this.giftDot.setVisible(dailyClaimable());
     if (this.vp) this.layout(this.vp);
   }

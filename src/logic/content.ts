@@ -54,15 +54,15 @@ export interface CafeDef {
   maxLevel: number;
   /** Ready servings a counter spot holds per item. */
   counterCap: number;
-  customers: { walkIn: number; leave: number; patience: number; heartShare: number };
+  customers: { walkIn: number; leave: number; patience: number };
   /** Seconds of making progress per tap on a busy machine. */
   tap: { boost: number };
   /** Seconds an animal needs to carry a serving to a customer, at speed 1. */
   staff: { deliverTime: number; pickupDelay: number };
   /** Coins multiplier for a customer served by the player's own tap (staff: 1). */
   handBonus: number;
-  /** Golden customer: tap-served only; pays bonusSeconds of income and hearts. */
-  vip: { everyMin: number; everyMax: number; patience: number; bonusSeconds: number; hearts: number; firstAfter: number };
+  /** Golden customer: tap-served only; pays bonusSeconds of income. */
+  vip: { everyMin: number; everyMax: number; patience: number; bonusSeconds: number; firstAfter: number };
   /** Five goals, one star each. The fifth star is the end of the run. */
   goals: GoalDef[];
   offline: { efficiency: number; capHours: number; minSeconds: number };

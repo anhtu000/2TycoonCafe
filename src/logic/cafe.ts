@@ -94,7 +94,7 @@ export type CafeEvent =
   | { type: 'spawn'; customer: Customer }
   | { type: 'made'; item: string }
   | { type: 'carry'; item: string; customer: number }
-  | { type: 'served'; customer: Customer; coins: number; hand: boolean; heart: boolean; vipBonus: number; hearts: number }
+  | { type: 'served'; customer: Customer; coins: number; hand: boolean; vipBonus: number }
   | { type: 'lost'; customer: Customer }
   | { type: 'gone'; customer: number }
   | { type: 'star'; stars: number }
@@ -613,13 +613,8 @@ export class Cafe {
     const s = this.s;
     const cfg = this.content.cafe;
     let coins = this.itemValue(c.item) * (hand ? cfg.handBonus + this.stat('handTip') : 1) * (s.rushLeft > 0 ? cfg.rush.mult : 1);
-    const heart = c.patience >= c.maxPatience * cfg.customers.heartShare;
     let vipBonus = 0;
-    let hearts = heart ? 1 : 0;
-    if (c.vip && hand) {
-      vipBonus = Math.max(coins * 5, s.rate * cfg.vip.bonusSeconds);
-      hearts += cfg.vip.hearts;
-    }
+    if (c.vip && hand) vipBonus = Math.max(coins * 5, s.rate * cfg.vip.bonusSeconds);
     this.earnedStep += coins;
     if (!hand) this.autoEarnedStep += coins;
     coins += vipBonus;
@@ -629,7 +624,7 @@ export class Cafe {
     c.t = cfg.customers.leave;
     c.happy = true;
     c.reserved = false;
-    events.push({ type: 'served', customer: c, coins, hand, heart, vipBonus, hearts });
+    events.push({ type: 'served', customer: c, coins, hand, vipBonus });
   }
 
   addCoins(n: number, countRate = true) {

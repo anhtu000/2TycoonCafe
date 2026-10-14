@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { app, Button, burst, formatClock, formatNumber, Panel, rewardButton, setShape, toast, type icons } from '@core';
 import type { AdoptResult, Cafe } from '../logic/cafe.ts';
 import { decorContent, content } from '../game/content';
-import { heartIcon, HEART_COLOR, starIcon } from '../render/icons';
+import { coinIcon, starIcon } from '../render/icons';
 import { ANIMAL_ASPECT, animalTexture, decorTexture, RARITY_CSS, RARITY_HEX, silhouetteTexture } from '../render/textures';
 import { save, type RunRecord } from '../save';
 
@@ -121,24 +121,17 @@ export interface MenuEntry {
   badge?: boolean;
 }
 
-/** List of places to go, with the heart balance on top. Each entry closes the menu first. */
+/** List of places to go. Each entry closes the menu first. */
 export function showGameMenu(scene: Phaser.Scene, entries: MenuEntry[], onClose?: () => void): Panel {
-  const rowH = 90;
-  const panel = new Panel(scene, { title: app.t('menu.title'), width: 540, height: 120 + 60 + entries.length * rowH + 30, onClose });
-  const heart = scene.add.image(0, 0, '__DEFAULT');
-  setShape(heart, 'heart|34', 34, 34, (g) => heartIcon(g, 34, HEART_COLOR));
-  const amount = label(scene, 0, 0, app.t('menu.hearts', { n: formatNumber(save.data.hearts) }), 28, '#ffc2cc').setOrigin(0, 0.5);
-  const w = 34 + 12 + amount.width;
-  heart.setPosition(-w / 2 + 17, panel.top - 6);
-  amount.setPosition(-w / 2 + 46, panel.top - 6);
-  panel.content.add([heart, amount]);
+  const rowH = 88;
+  const panel = new Panel(scene, { title: app.t('menu.title'), width: 540, height: 120 + entries.length * rowH + 40, onClose });
   entries.forEach((e, i) => {
-    const y = panel.top + 52 + rowH / 2 + i * rowH;
+    const y = panel.top + rowH / 2 - 10 + i * rowH;
     const b = new Button(scene, 0, y, {
       label: e.label,
       icon: e.icon,
       width: 420,
-      height: 76,
+      height: 74,
       fontSize: 30,
       color: app.theme.surface,
       textColor: app.theme.surfaceText,
@@ -151,81 +144,102 @@ export function showGameMenu(scene: Phaser.Scene, entries: MenuEntry[], onClose?
     if (e.badge) {
       const dot = scene.add.graphics();
       dot.fillStyle(0xff5a6e, 1);
-      dot.fillCircle(196, y - 30, 11);
+      dot.fillCircle(196, y - 28, 11);
       dot.lineStyle(3, 0xffffff, 1);
-      dot.strokeCircle(196, y - 30, 11);
+      dot.strokeCircle(196, y - 28, 11);
       panel.content.add(dot);
     }
   });
   return panel;
 }
 
-/** Decorations: bought with hearts, each placed in its spot of a floor. */
-export function showDecor(scene: Phaser.Scene, onChange: () => void, onClose?: () => void): Panel {
+/**
+ * Decorations: bought with the cafe's coins (one currency, Poki guide 7.1), or one unlocked with a
+ * rewarded ad ("customisation" reward). Each sits in its spot of a floor and adds a little to tips.
+ */
+export function showDecor(scene: Phaser.Scene, cafe: Cafe, onChange: () => void, onClose?: () => void): Panel {
   const items = decorContent.items;
   const vp = app.viewport.info;
   const cols = vp.portrait ? 2 : 4;
   const rowH = 96;
   const cellW = vp.portrait ? 330 : 290;
   const rows = Math.ceil(items.length / cols);
-  const panel = new Panel(scene, { title: app.t('decor.title'), width: cols * cellW + 60, height: 330 + rows * rowH, onClose });
-  const balance = label(scene, 0, panel.top - 4, '', 30, '#ffc2cc');
-  const info = label(scene, 0, panel.top + 34, app.t('decor.info'), 22, '#e9d8c8', '700');
-  panel.content.add([balance, info]);
+  const panel = new Panel(scene, { title: app.t('decor.title'), width: cols * cellW + 60, height: 320 + rows * rowH, onClose });
+  const info = label(scene, 0, panel.top - 10, app.t('decor.info'), 24, '#e9d8c8', '700');
+  panel.content.add(info);
   const buttons: { id: string; b: Button }[] = [];
+  const owned = (id: string) => save.data.decor.includes(id);
+  const give = (id: string) => {
+    save.data.decor.push(id);
+    save.flush();
+    const it = items.find((i) => i.id === id)!;
+    toast(scene, `${app.t(`decor.${id}`)}: ${app.t(`floor.${it.floor}`)}`);
+    onChange();
+    refresh();
+  };
+  /** Cheapest decoration not owned yet: what the free (ad) unlock gives. */
+  const nextFree = () => items.filter((i) => !owned(i.id)).sort((a, b) => a.price - b.price)[0] ?? null;
+  let ad: Button | null = null;
   const refresh = () => {
-    balance.setText(app.t('menu.hearts', { n: formatNumber(save.data.hearts) }));
     for (const { id, b } of buttons) {
-      const owned = save.data.decor.includes(id);
       const price = items.find((i) => i.id === id)!.price;
-      b.setLabel(owned ? `${app.t(`decor.${id}`)} ✓` : `${app.t(`decor.${id}`)}  ${price}`);
-      b.setEnabled(!owned && save.data.hearts >= price);
-      if (owned) b.setAlpha(0.75);
+      b.setLabel(owned(id) ? `${app.t(`decor.${id}`)} ✓` : `${app.t(`decor.${id}`)}  ${formatNumber(price)}`);
+      b.setEnabled(!owned(id) && cafe.s.coins >= price);
+      if (owned(id)) b.setAlpha(0.75);
+    }
+    const next = nextFree();
+    if (ad) {
+      ad.setVisible(!!next && app.ads.rewardedAvailable && !app.clean);
+      if (next) ad.setLabel(app.t('decor.ad', { item: app.t(`decor.${next.id}`) }));
     }
   };
   const x0 = -((cols - 1) * cellW) / 2;
   items.forEach((it, i) => {
     const cx = x0 + (i % cols) * cellW;
-    const cy = panel.top + 120 + Math.floor(i / cols) * rowH;
+    const cy = panel.top + 64 + Math.floor(i / cols) * rowH;
     const pic = scene.add.image(cx - cellW / 2 + 46, cy, decorTexture(scene, it.id, it.slot)).setDisplaySize(72, 72);
     const b = new Button(scene, cx + 34, cy, {
       label: '',
-      icon: heartIcon,
+      icon: coinIcon,
       width: cellW - 96,
       height: 76,
       fontSize: 22,
       color: app.theme.surface,
       textColor: app.theme.surfaceText,
       onClick: () => {
-        if (save.data.decor.includes(it.id) || save.data.hearts < it.price) return;
-        save.data.hearts -= it.price;
-        save.data.decor.push(it.id);
-        save.flush();
+        if (owned(it.id) || cafe.s.coins < it.price) return;
+        cafe.s.coins -= it.price;
         app.audio.play('buy');
-        toast(scene, `${app.t(`decor.${it.id}`)}: ${app.t(`floor.${it.floor}`)}`);
-        onChange();
-        refresh();
+        give(it.id);
       },
     });
     buttons.push({ id: it.id, b });
     panel.content.add([pic, b]);
   });
-  const cooldown = () => Math.max(0, (save.data.decorAdAt + content.cafe.rewarded.cooldown * 1000 * (app.ads.rewardsAreFree ? 1.5 : 1) - Date.now()) / 1000);
-  const ad = rewardButton(scene, 0, panel.panelHeight / 2 - 64, {
-    label: app.t('decor.ad', { n: decorContent.adHearts }),
+  // Plain button and the rewarded one side by side, same size (Poki guide 7.2).
+  const yB = panel.panelHeight / 2 - 66;
+  const close = new Button(scene, -170, yB, {
+    label: app.t('core.close'),
     width: 320,
-    height: 80,
+    height: 84,
     fontSize: 28,
-    cooldown,
+    color: app.theme.surface,
+    textColor: app.theme.surfaceText,
+    onClick: () => panel.close(),
+  });
+  ad = rewardButton(scene, 170, yB, {
+    label: '',
+    width: 320,
+    height: 84,
+    fontSize: 24,
     onReward: () => {
-      save.data.hearts += decorContent.adHearts;
-      save.data.decorAdAt = Date.now();
-      save.flush();
+      const next = nextFree();
+      if (!next) return;
       app.audio.play('reward');
-      refresh();
+      give(next.id);
     },
   });
-  panel.content.add(ad);
+  panel.content.add([close, ad]);
   refresh();
   return panel;
 }

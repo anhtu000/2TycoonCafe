@@ -37,7 +37,6 @@ export const PRESETS: Record<string, () => void> = {
       cafe.s.adopts = 3;
       cafe.s.served = 260;
       cafe.s.coins = 80000;
-      save.data.hearts = 240;
     }),
   // Every floor open, most helpers.
   dessert: () =>
@@ -60,7 +59,6 @@ export const PRESETS: Record<string, () => void> = {
       cafe.s.adopts = 7;
       cafe.s.served = 2400;
       cafe.s.coins = 5e8;
-      save.data.hearts = 900;
     }),
   // One level away from the fifth star.
   finish: () => {

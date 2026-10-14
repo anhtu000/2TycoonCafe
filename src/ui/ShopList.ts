@@ -68,7 +68,7 @@ interface Card {
 /** Id of the boost card in the list. Not an upgrade id. */
 export const BOOST_CARD = '__boost';
 
-const REWARD_TEXT = '#7ff0b8';
+const REWARD_TEXT = '#d9c8ff';
 
 /** Press id of the "more" arrow (not a card). */
 const MORE = '__more';
@@ -336,7 +336,8 @@ export class ShopList {
       boost.onReward();
       punch(this.scene, card.box, 0.08);
     } else {
-      toast(this.scene, app.t(app.ads.lastOutcome === 'adblock' ? 'core.adBlocked' : 'core.adUnavailable'));
+      const message = app.ads.failureMessage((k) => app.t(k));
+      if (message) toast(this.scene, message);
     }
     this.refresh(true);
   }
@@ -440,16 +441,16 @@ export class ShopList {
     if (!force && state === card.state) return;
     card.state = state;
     const reward = app.theme.reward;
-    this.frame(card, ready ? 0x1f4a3a : 0x2c2a22, ready ? reward : 0x2f6b55, ready ? 1 : 0.8);
-    this.drawGlyph(card.icon, boost.icon, this.horizontal ? 42 : 46, ready ? 0x7ff0b8 : 0x5f9c86);
+    this.frame(card, ready ? 0x3a2a5c : 0x2c2a2e, ready ? reward : 0x5a4a7a, ready ? 1 : 0.8);
+    this.drawGlyph(card.icon, boost.icon, this.horizontal ? 42 : 46, ready ? 0xd9c8ff : 0x8a7aa8);
     card.name.setText(boost.name);
     card.desc.setText(boost.desc);
     card.level.setText('');
     // Video icon before the status line: this card plays a rewarded ad (CrazyGames asks for a clear marker).
     card.coin.setVisible(true);
-    this.drawGlyph(card.coin, icons.videoIcon, 30, ready ? 0x7ff0b8 : 0x5f9c86);
+    this.drawGlyph(card.coin, icons.videoIcon, 30, ready ? 0xd9c8ff : 0x8a7aa8);
     card.cost.setText(status);
-    card.cost.setColor(ready ? REWARD_TEXT : '#8fb8a8');
+    card.cost.setColor(ready ? REWARD_TEXT : "#a99cc4");
     card.cost.setScale(1);
     const costRoom = this.cardW - (this.horizontal ? 62 : 130);
     if (card.cost.width > costRoom) card.cost.setScale(costRoom / card.cost.width);

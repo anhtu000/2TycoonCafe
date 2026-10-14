@@ -128,8 +128,7 @@
   "customers": {
     "walkIn": 1.4,
     "leave": 1.0,
-    "patience": 22,
-    "heartShare": 0.5
+    "patience": 22
   },
   "tap": {
     "boost": 0.45
@@ -143,7 +142,6 @@
     "everyMax": 60,
     "patience": 14,
     "bonusSeconds": 12,
-    "hearts": 3,
     "firstAfter": 50
   },
   "goals": [
@@ -184,23 +182,23 @@
       "coinsMin": 2
     },
     {
-      "hearts": 20
-    },
-    {
-      "coinsMin": 5
+      "coinsMin": 4
     },
     {
       "ticket": 1
     },
     {
-      "coinsMin": 10
+      "coinsMin": 6
     },
     {
-      "hearts": 40
+      "coinsMin": 8
     },
     {
-      "ticket": 1,
-      "hearts": 40
+      "ticket": 1
+    },
+    {
+      "coinsMin": 12,
+      "ticket": 1
     }
   ],
   "rewarded": {

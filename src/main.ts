@@ -13,9 +13,12 @@ startGame({
   scenes: [HomeScene, PlayScene],
   playScene: 'Play',
   // New players go straight into the cafe; returning players see the home screen (CLAUDE.md 4.2).
-  menu: 'returning',
+  // Poki: everyone goes straight into the cafe (no title screen); the in-game menu has everything.
+  menu: __TARGET__ === 'poki' ? false : 'returning',
   menuScene: 'Home',
   save,
+  // Poki manages ad frequency: no timer of our own, and no home-made message when an ad fails.
+  ads: __TARGET__ === 'poki' ? { midgameGapSec: 0, silentFailures: true } : {},
   preload: (scene) => {
     // A single-file build (scripts/build-single.mjs) carries the sounds inline in window.__ASSETS.
     const inline = (window as unknown as { __ASSETS?: Record<string, string> }).__ASSETS;
@@ -32,7 +35,8 @@ startGame({
     surfaceText: '#fff3e0',
     text: '#ffffff',
     textDim: '#e3cbb8',
-    reward: 0x36d68a,
-    rewardText: '#052b17',
+    // Rewarded buttons are never green on Poki (Poki guide 7.2): purple, with the video icon.
+    reward: 0x8b5cf6,
+    rewardText: '#ffffff',
   },
 });

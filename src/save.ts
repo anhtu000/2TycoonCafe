@@ -24,8 +24,6 @@ export interface SaveData {
   /** Tutorial steps already done. */
   tutorial: string[];
   daily: DailyState;
-  /** Hearts from happy customers: the decoration currency. */
-  hearts: number;
   /** Decorations owned. */
   decor: string[];
   /** When the decor shop's heart ad was last watched (ms). */
@@ -79,7 +77,6 @@ const fresh = (): SaveData => ({
   book: {},
   tutorial: [],
   daily: { lastClaim: null, streak: 0 },
-  hearts: 0,
   decor: [],
   decorAdAt: 0,
   bestRunMs: 0,

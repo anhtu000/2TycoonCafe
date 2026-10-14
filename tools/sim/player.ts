@@ -55,7 +55,6 @@ export interface RunReport {
   lost: number;
   handServed: number;
   vips: number;
-  hearts: number;
   adopts: number;
   rewards: Record<string, number>;
   /** Income per second at 10, 20, 30 minutes. */
@@ -94,7 +93,6 @@ export function simulate(
   const gaps = { first10: 0, to30: 0, after30: 0 };
   let handServed = 0;
   let vips = 0;
-  let hearts = 0;
   const rewards: Record<string, number> = {};
   const rateAt: Record<string, number> = {};
   const staffAt: Record<string, number> = {};
@@ -113,7 +111,6 @@ export function simulate(
       if (e.type === 'served') {
         if (e.hand) handServed++;
         if (e.customer.vip && e.hand) vips++;
-        hearts += e.hearts;
         if (s.served === 1) once('First serve');
       } else if (e.type === 'star') once(`Star ${e.stars}`);
     }
@@ -182,7 +179,6 @@ export function simulate(
     lost: s.lost,
     handServed,
     vips,
-    hearts,
     adopts: cafe.staffCount(),
     rewards,
     rateAt,
