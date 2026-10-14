@@ -136,7 +136,7 @@
   },
   "staff": {
     "deliverTime": 1.1,
-    "pickupDelay": 1.2
+    "pickupDelay": 1.0
   },
   "vip": {
     "everyMin": 35,

@@ -256,7 +256,7 @@ export class PlayScene extends BaseScene {
             app.audio.play('reward');
             app.moments.emit('rarePull', { tier: 3, odds: 0, label: 'vip' });
           } else {
-            app.audio.play(e.hand ? 'buy' : 'tap', { pitchJitter: 120, volume: e.hand ? 0.55 : 0.25 });
+            app.audio.play('coin', { pitchJitter: 90, volume: e.hand ? 0.6 : 0.22 });
           }
           punch(this, this.coins, 0.06);
           break;
@@ -264,12 +264,16 @@ export class PlayScene extends BaseScene {
         case 'lost': {
           const top = this.floors[e.customer.floor].customerTop(e.customer.id);
           if (top) floatText(this, top.x, top.y, '...', { color: '#ffb0a0', size: 34 });
+          app.audio.play('sad', { volume: 0.4 });
           break;
         }
         case 'made': {
           const f = this.floors[this.cafe.floorIndexOf(e.item)];
           const top = f.machineTop(e.item);
-          if (top && !this.cafe.s.assign[e.item]) burst(this, top.x, top.y + 20, 0xfff1b8, 6, 160);
+          if (top && !this.cafe.s.assign[e.item]) {
+            burst(this, top.x, top.y + 20, 0xfff1b8, 6, 160);
+            app.audio.play('pop', { pitchJitter: 80, volume: 0.5 });
+          }
           break;
         }
         case 'star':

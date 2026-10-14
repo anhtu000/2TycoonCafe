@@ -3,7 +3,7 @@ import { app, Button, burst, formatClock, formatNumber, Panel, rewardButton, set
 import type { AdoptResult, Cafe } from '../logic/cafe.ts';
 import { decorContent, content } from '../game/content';
 import { heartIcon, HEART_COLOR, starIcon } from '../render/icons';
-import { ANIMAL_ASPECT, animalTexture, RARITY_CSS, RARITY_HEX, silhouetteTexture } from '../render/textures';
+import { ANIMAL_ASPECT, animalTexture, decorTexture, RARITY_CSS, RARITY_HEX, silhouetteTexture } from '../render/textures';
 import { save, type RunRecord } from '../save';
 
 // Modal windows of the game: adoption reveal, staff book, menu, decor, records, finish.
@@ -164,11 +164,11 @@ export function showGameMenu(scene: Phaser.Scene, entries: MenuEntry[], onClose?
 export function showDecor(scene: Phaser.Scene, onChange: () => void, onClose?: () => void): Panel {
   const items = decorContent.items;
   const vp = app.viewport.info;
-  const cols = vp.portrait ? 2 : 3;
+  const cols = vp.portrait ? 2 : 4;
   const rowH = 96;
-  const cellW = 300;
+  const cellW = vp.portrait ? 330 : 290;
   const rows = Math.ceil(items.length / cols);
-  const panel = new Panel(scene, { title: app.t('decor.title'), width: cols * cellW + 60, height: 300 + rows * rowH, onClose });
+  const panel = new Panel(scene, { title: app.t('decor.title'), width: cols * cellW + 60, height: 330 + rows * rowH, onClose });
   const balance = label(scene, 0, panel.top - 4, '', 30, '#ffc2cc');
   const info = label(scene, 0, panel.top + 34, app.t('decor.info'), 22, '#e9d8c8', '700');
   panel.content.add([balance, info]);
@@ -185,12 +185,15 @@ export function showDecor(scene: Phaser.Scene, onChange: () => void, onClose?: (
   };
   const x0 = -((cols - 1) * cellW) / 2;
   items.forEach((it, i) => {
-    const b = new Button(scene, x0 + (i % cols) * cellW, panel.top + 120 + Math.floor(i / cols) * rowH, {
+    const cx = x0 + (i % cols) * cellW;
+    const cy = panel.top + 120 + Math.floor(i / cols) * rowH;
+    const pic = scene.add.image(cx - cellW / 2 + 46, cy, decorTexture(scene, it.id, it.slot)).setDisplaySize(72, 72);
+    const b = new Button(scene, cx + 34, cy, {
       label: '',
       icon: heartIcon,
-      width: cellW - 20,
+      width: cellW - 96,
       height: 76,
-      fontSize: 24,
+      fontSize: 22,
       color: app.theme.surface,
       textColor: app.theme.surfaceText,
       onClick: () => {
@@ -205,7 +208,7 @@ export function showDecor(scene: Phaser.Scene, onChange: () => void, onClose?: (
       },
     });
     buttons.push({ id: it.id, b });
-    panel.content.add(b);
+    panel.content.add([pic, b]);
   });
   const cooldown = () => Math.max(0, (save.data.decorAdAt + content.cafe.rewarded.cooldown * 1000 * (app.ads.rewardsAreFree ? 1.5 : 1) - Date.now()) / 1000);
   const ad = rewardButton(scene, 0, panel.panelHeight / 2 - 64, {

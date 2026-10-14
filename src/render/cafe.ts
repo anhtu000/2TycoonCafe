@@ -484,13 +484,39 @@ function decorSpot(L: RoomLayout, slot: string) {
   }
 }
 
+/** A decoration alone, centered in a square of `size` pixels (decor shop). */
+export function drawDecorIcon(ctx: Ctx, size: number, id: string, slot: string) {
+  const L = roomLayout(400, 200);
+  // Each piece is drawn around its own anchor in the room; move its middle to the icon's center.
+  const fit: Record<string, [number, number]> = {
+    plant: [40, 1.05],
+    lamp: [-28, 1.5],
+    bunting: [-22, 0.32],
+    lights: [-22, 0.32],
+  };
+  const [dy, k] = fit[id] ?? fit[slot] ?? [0, 1.6];
+  ctx.save();
+  ctx.translate(size / 2, size / 2);
+  ctx.scale((size / 100) * k, (size / 100) * k);
+  ctx.translate(0, dy);
+  drawDecorAt(ctx, L, id, 0, 0);
+  ctx.restore();
+}
+
 /** One decoration, drawn into the room texture at its spot. */
 function drawDecor(ctx: Ctx, L: RoomLayout, slot: string, id: string) {
   const { x, y } = decorSpot(L, slot);
-  const lw = 2.5;
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(Math.min(L.u, 1.3), Math.min(L.u, 1.3));
+  drawDecorAt(ctx, L, id, 0, 0);
+  ctx.restore();
+}
+
+function drawDecorAt(ctx: Ctx, _L: RoomLayout, id: string, x: number, y: number) {
+  const lw = 2.5;
+  ctx.save();
+  ctx.translate(x, y);
   ctx.lineCap = 'round';
   switch (id) {
     case 'fern':

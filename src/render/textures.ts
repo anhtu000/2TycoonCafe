@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { shapeResolution } from '@core';
 import { drawAnimal, SCARF_COLORS, type Outfit } from './animals';
-import { counterSize, drawCounter, drawItem, drawMachine, drawRoom, ROOM_THEMES } from './cafe';
+import { counterSize, drawCounter, drawDecorIcon, drawItem, drawMachine, drawRoom, ROOM_THEMES } from './cafe';
 
 // Canvas drawings turned into Phaser textures once, then shown as plain images (cheap on phones).
 
@@ -84,4 +84,9 @@ export function counterTexture(scene: Phaser.Scene, floor: string, w: number, h:
   const size = counterSize(w, h);
   const key = `counter:${floor}:${Math.round(w)}x${Math.round(h)}@${k}`;
   return { key: addCanvas(scene, key, size.w * k, size.h * k, (ctx) => drawCounter(ctx, w, h, k, ROOM_THEMES[floor])), w: size.w, h: size.h };
+}
+
+/** A decoration on its own, for the decor shop. */
+export function decorTexture(scene: Phaser.Scene, id: string, slot: string) {
+  return addCanvas(scene, `decor:${id}`, 128, 128, (ctx) => drawDecorIcon(ctx, 128, id, slot));
 }

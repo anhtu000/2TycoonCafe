@@ -18,7 +18,8 @@
     "test": "node --experimental-strip-types --test tests/core.test.ts src/logic/cafe.test.ts",
     "sync-core": "node scripts/sync-core.mjs",
     "sim": "node --experimental-strip-types tools/sim/run.ts 200",
-    "sim:quick": "node --experimental-strip-types tools/sim/quick.ts"
+    "sim:quick": "node --experimental-strip-types tools/sim/quick.ts",
+    "build:single": "npm run build:web && node scripts/build-single.mjs dist/web dist/single/CritterCafe_PhoneTest_v1.html"
   },
   "dependencies": {
     "phaser": "4.2.1"

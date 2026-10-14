@@ -17,7 +17,12 @@ startGame({
   menuScene: 'Home',
   save,
   preload: (scene) => {
-    for (const key of ['tap', 'ui-tap', 'buy', 'reward']) scene.load.audio(key, `audio/${key}.wav`);
+    // A single-file build (scripts/build-single.mjs) carries the sounds inline in window.__ASSETS.
+    const inline = (window as unknown as { __ASSETS?: Record<string, string> }).__ASSETS;
+    for (const key of ['tap', 'ui-tap', 'buy', 'reward', 'coin', 'pop', 'sad']) {
+      const path = `audio/${key}.wav`;
+      scene.load.audio(key, inline?.[path] ?? path);
+    }
   },
   theme: {
     background: game.background,

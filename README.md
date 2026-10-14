@@ -1,8 +1,21 @@
-# 2TycoonCafe
+# 2TycoonCafe – Critter Cafe Tycoon (tên tạm)
 
-Game HTML5 cho web portal (CrazyGames trước). Phaser 4 + TypeScript, dựng bằng Vite. Quyết định chung của dự án nằm trong `CLAUDE.md` của project Game Making trên claude.ai.
+Game #2: tycoon 2D, quán cozy 3 tầng do thú vận hành (CLAUDE.md mục 5, 5a). Đường phát hành: thử Poki trước. Phaser 4 + TypeScript, dựng bằng Vite.
 
-Hiện repo chứa bộ khung chung (`core/`) và một màn demo (`src/`) để kiểm tra bộ khung. Code game thật sẽ thay màn demo.
+## Code của game (`src/`)
+
+| Chỗ | Việc |
+| --- | --- |
+| `src/content/*.json` | Mọi con số: tầng, món, mốc cấp, khách, thú, nâng cấp, quà ngày, quảng cáo (`cafe.json`, `staff.json`, `upgrades.json`, `decor.json`) |
+| `src/logic/cafe.ts` | Toàn bộ kinh tế một lượt chơi, không dùng Phaser. Màn chơi và bộ mô phỏng cùng chạy class `Cafe` |
+| `src/logic/cafe.test.ts` | Test logic (chạy bằng `npm test`) |
+| `src/render/` | Vẽ thú, món, máy, phòng, đồ trang trí bằng Canvas 2D rồi lưu thành texture |
+| `src/ui/Floor.ts` | Một tầng quán: vẽ theo trạng thái mỗi khung hình |
+| `src/ui/ShopList.ts` | Dải nâng cấp (dọc trên máy tính, ngang trên điện thoại) |
+| `src/ui/panels.ts` | Bảng nhận nuôi, Staff, menu, Decor, kỷ lục, về đích |
+| `src/scenes/PlayScene.ts`, `HomeScene.ts` | Màn chơi và màn menu cho người đã có save |
+| `src/game/presets.ts` | Trạng thái dựng sẵn để thử (chỉ bản web): `#staff`, `#dessert`, `#finish`; `#reset` xoá save thử |
+| `tools/sim/` | Mô phỏng kinh tế: `npm run sim` (200 lượt mỗi kiểu người chơi), `npm run sim:quick -- 1000 active none` (một lượt chi tiết theo phút) |
 
 ## Cài đặt
 
@@ -18,6 +31,8 @@ Hiện repo chứa bộ khung chung (`core/`) và một màn demo (`src/`) để
 | `npm run build` | Build cho CrazyGames vào `dist/crazygames`, rồi kiểm tra kích thước và request ra ngoài |
 | `npm run build:poki` | Build cho Poki vào `dist/poki` (nạp Poki SDK v2 trong `<head>`); báo `FAIL` nếu tổng trên 8 MB |
 | `npm run dev:poki` | Chạy thử với Poki SDK (thử quảng cáo bằng Poki Inspector) |
+| `npm run build:single` | Gói bản web thành một file HTML (`dist/single/`) để mở trên điện thoại hoặc đăng artifact |
+| `npm run sim` | Mô phỏng kinh tế (CLAUDE.md mục 5a) |
 | `npm run build:web` | Build không có SDK vào `dist/web` (để đăng artifact, chạy thử trên điện thoại) |
 | `npm run preview` | Phục vụ bản build CrazyGames để thử |
 | `npm test` | Test các hàm định dạng số, thời gian, quà hằng ngày |
