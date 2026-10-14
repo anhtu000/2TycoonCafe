@@ -1,4 +1,4 @@
-# 2TycoonCafe – Critter Cafe Tycoon (tên tạm)
+# 2TycoonCafe – Tiny Tails Cafe Tycoon
 
 Game #2: tycoon 2D, quán cozy 3 tầng do thú vận hành (CLAUDE.md mục 5, 5a). Đường phát hành: thử Poki trước. Phaser 4 + TypeScript, dựng bằng Vite.
 

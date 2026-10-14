@@ -344,7 +344,8 @@ export class Floor {
         const p = Phaser.Math.Clamp(state.job / this.cafe.makeTime(st.item), 0, 1);
         const bw = 64 * k;
         const bx = st.machine.x - bw / 2;
-        const by = st.machine.y - st.machine.displayHeight - 14;
+        // On the machine's face, clear of the menu board above it.
+        const by = st.machine.y - st.machine.displayHeight * 0.55;
         this.progress.fillStyle(0x3b2a22, 0.85);
         this.progress.fillRoundedRect(bx - 3, by - 3, bw + 6, 16, 8);
         this.progress.fillStyle(0x7fe0a6, 1);
