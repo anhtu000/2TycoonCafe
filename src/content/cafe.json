@@ -178,5 +178,36 @@
     "seconds": 60,
     "mult": 2
   },
-  "handBonus": 1.5
+  "handBonus": 1.5,
+  "daily": [
+    {
+      "coinsMin": 2
+    },
+    {
+      "hearts": 20
+    },
+    {
+      "coinsMin": 5
+    },
+    {
+      "ticket": 1
+    },
+    {
+      "coinsMin": 10
+    },
+    {
+      "hearts": 40
+    },
+    {
+      "ticket": 1,
+      "hearts": 40
+    }
+  ],
+  "rewarded": {
+    "cooldown": 300,
+    "freeUpgradeCooldown": 265,
+    "freeUpgradeWindow": 150,
+    "offlineMult": 2,
+    "dailyMult": 2
+  }
 }

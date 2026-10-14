@@ -1,12 +1,202 @@
 {
-  "demo": {
-    "perSecond": "{n} per second",
-    "upgradeTap": "+1 per tap",
-    "upgradeAuto": "+1 per second",
-    "cost": "{n}",
-    "rewardDouble": "Double coins",
-    "away": "Welcome back! You earned {n} in {t}.",
-    "hint": "Tap!",
-    "speed": "Orbit test"
+  "item": {
+    "coffee": "Coffee",
+    "tea": "Matcha Tea",
+    "croissant": "Croissant",
+    "cake": "Strawberry Cake",
+    "icecream": "Ice Cream",
+    "bubbletea": "Bubble Tea"
+  },
+  "floor": {
+    "coffee": "Coffee Corner",
+    "bakery": "Bakery",
+    "dessert": "Dessert Bar",
+    "later": "Open the floor below first"
+  },
+  "animal": {
+    "capybara": "Capybara",
+    "hamster": "Hamster",
+    "bunny": "Bunny",
+    "cat": "Cat",
+    "shiba": "Shiba",
+    "penguin": "Penguin",
+    "koala": "Koala",
+    "redpanda": "Red Panda",
+    "panda": "Panda",
+    "axolotl": "Axolotl"
+  },
+  "rarity": {
+    "common": "Common",
+    "rare": "Rare",
+    "epic": "Epic",
+    "legendary": "Legendary"
+  },
+  "perk": {
+    "speed": "Works {n}% faster",
+    "tips": "Customers tip {n}% more",
+    "base": "Speed x{n}"
+  },
+  "upgrade": {
+    "smile": {
+      "name": "Friendly Smile",
+      "desc": "Bigger tips when you serve by hand"
+    },
+    "hands": {
+      "name": "Quick Hands",
+      "desc": "Each tap on a machine works faster"
+    },
+    "sign": {
+      "name": "Cozy Sign",
+      "desc": "Customers come more often"
+    },
+    "chairs": {
+      "name": "Comfy Chairs",
+      "desc": "Customers wait longer"
+    },
+    "tipjar": {
+      "name": "Tip Jar",
+      "desc": "Every customer pays more"
+    },
+    "training": {
+      "name": "Staff Training",
+      "desc": "Helpers work faster"
+    },
+    "pantry": {
+      "name": "Big Pantry",
+      "desc": "Earn longer while you are away"
+    }
+  },
+  "shop": {
+    "level": "Lv {n}",
+    "max": "MAX",
+    "free": "Free",
+    "itemDesc": "Each serving pays more",
+    "itemNext": "x{n} at Lv {l}",
+    "adopt": "Adopt a Helper",
+    "adoptDesc": "A new animal for your staff",
+    "adoptDup": "Find rarer helpers",
+    "seat": "Extra Seat",
+    "seatDesc": "{floor}: one more customer"
+  },
+  "boost": {
+    "rush": "Rush Hour",
+    "rushDesc": "Customers pay x2 for 60 s",
+    "rushOn": "On: {t} left",
+    "adopt": "Free Helper",
+    "adoptDesc": "Adopt an animal for free",
+    "upgrade": "Free Upgrade"
+  },
+  "hud": {
+    "perSec": "+{n}/s",
+    "goal": {
+      "serve": "Serve {n} customers",
+      "bakery": "Open the Bakery",
+      "staff": "Hire {n} helpers",
+      "dessert": "Open the Dessert Bar",
+      "bubbletea": "Bubble Tea to Lv {n}"
+    },
+    "allStars": "Five-star cafe!",
+    "rush": "Rush Hour x2  {t}",
+    "timed": "Timed run"
+  },
+  "tut": {
+    "make": "Tap the coffee machine",
+    "serve": "Tap the customer to serve",
+    "upgrade": "Level up Coffee: each cup pays more",
+    "tea": "Add matcha tea to the menu",
+    "adopt": "Adopt a helper",
+    "helper": "Your helper makes and serves on its own. Serve by hand for bigger tips!",
+    "vip": "A VIP! Serve them yourself for a big tip",
+    "bakery": "Open the Bakery upstairs",
+    "seat": "More seats, more customers",
+    "rush": "Rush Hour: customers pay double for a minute",
+    "gotIt": "Got it",
+    "notReady": "Make it first: tap the machine",
+    "space": "Tip: tap fast to make orders faster"
+  },
+  "adopt": {
+    "title": "New helper!",
+    "levelUp": "Level up!",
+    "maxed": "Already at max level: +{n} coins",
+    "worksAt": "Works at: {item}",
+    "resting": "Resting (all stations full)",
+    "odds": "{r} · 1 in {n}",
+    "ok": "Nice!"
+  },
+  "book": {
+    "title": "Staff",
+    "odds": "Chance per adoption",
+    "pityEpic": "Epic or better within {n}",
+    "pityLegend": "Legendary within {n}",
+    "unknown": "???",
+    "level": "Lv {n}"
+  },
+  "star": {
+    "got": "New star!",
+    "next": "Next: {goal}"
+  },
+  "finish": {
+    "title": "Five-star cafe!",
+    "timedTitle": "Run complete!",
+    "time": "Time: {t}",
+    "served": "Customers served: {n}",
+    "staff": "Helpers: {n} of {m}",
+    "best": "Best: {t}",
+    "newBest": "New best time!",
+    "keep": "Keep playing",
+    "timed": "Timed run",
+    "again": "Play again",
+    "back": "Back to my cafe",
+    "firstNote": "Now try a timed run, or collect every helper!"
+  },
+  "menu": {
+    "title": "Menu",
+    "continue": "Continue",
+    "resume": "Back to cafe",
+    "staff": "Staff",
+    "decor": "Decor",
+    "timed": "Timed run",
+    "records": "Records",
+    "daily": "Daily gift",
+    "home": "Home",
+    "leaveTimed": "Leave timed run",
+    "hearts": "{n} hearts"
+  },
+  "decor": {
+    "title": "Decor",
+    "info": "Each decoration: +3% tips everywhere",
+    "owned": "Owned",
+    "need": "Not enough hearts",
+    "ad": "+{n} hearts",
+    "fern": "Fern",
+    "clock": "Wall Clock",
+    "lamp": "Pendant Lamp",
+    "frame": "Landscape Frame",
+    "cactus": "Cactus",
+    "bunting": "Bunting",
+    "shelf": "Jar Shelf",
+    "poster": "Cake Poster",
+    "monstera": "Monstera",
+    "lights": "Fairy Lights",
+    "neon": "Neon Heart",
+    "aquarium": "Aquarium"
+  },
+  "daily": {
+    "coins": "{n} min",
+    "hearts": "{n}",
+    "ticket": "Helper"
+  },
+  "records": {
+    "title": "Records",
+    "empty": "Finish a timed run to set a record",
+    "row": "{i}. {t}"
+  },
+  "toast": {
+    "vip": "VIP tip! +{n}",
+    "hearts": "+{n} hearts",
+    "ticket": "Free helper ready in the shop",
+    "floorOpen": "{floor} is open!",
+    "itemNew": "{item} is on the menu!",
+    "away": "Your helpers earned {n} while you were away"
   }
 }

@@ -349,6 +349,8 @@ export const ROOM_THEMES: Record<string, RoomTheme> = {
 export interface RoomLayout {
   w: number;
   h: number;
+  /** Vertical scale: 1 for a 200-unit floor. */
+  u: number;
   /** y of the floor line (feet of customers and staff). */
   floorY: number;
   /** x of the door's center. */
@@ -366,28 +368,31 @@ export interface RoomLayout {
 }
 
 export function roomLayout(w: number, h: number): RoomLayout {
-  const floorY = h - 22;
-  const counterW = Math.min(340, w * 0.46);
+  // Vertical sizes follow the floor height (u = 1 at 200 units), so tall phone floors keep their proportions.
+  const u = h / 200;
+  const floorY = h - 20 * u;
+  const counterW = Math.min(340 * Math.min(u, 1.25), w * 0.41);
   const counterX = w - counterW;
-  const doorX = 46;
-  const left = 120;
-  const right = counterX - 40;
+  const doorX = 46 * Math.min(u, 1.2);
+  const left = doorX + 64;
+  const right = counterX - 36 * Math.min(u, 1.2);
   const step = (right - left) / 3;
   return {
     w,
     h,
+    u,
     floorY,
     doorX,
     counterX,
-    counterY: floorY - 56,
-    backY: floorY - Math.min(96, h * 0.42),
+    counterY: floorY - 52 * u,
+    backY: floorY - 88 * u,
     spots: [0, 1, 2, 3].map((i) => right - i * step),
     machines: [counterX + counterW * 0.27, counterX + counterW * 0.72],
   };
 }
 
 /** Back wall, door, window, shelf, floorboards and the counter, for a floor `w` x `h` pixels (scale k px per unit). */
-export function drawRoom(ctx: Ctx, w: number, h: number, k: number, theme: RoomTheme, items: string[]) {
+export function drawRoom(ctx: Ctx, w: number, h: number, k: number, theme: RoomTheme, decor: { id: string; slot: string }[] = []) {
   const L = roomLayout(w / k, h / k);
   ctx.save();
   ctx.scale(k, k);
@@ -398,12 +403,12 @@ export function drawRoom(ctx: Ctx, w: number, h: number, k: number, theme: RoomT
   ctx.fillStyle = theme.wall;
   ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = theme.wallDark;
-  for (let x = 0; x < W; x += 36) ctx.fillRect(x, 0, 14, L.floorY - 40);
+  for (let x = 0; x < W; x += 36) ctx.fillRect(x, 0, 14, L.floorY - 40 * L.u);
   // Wainscot.
   ctx.fillStyle = theme.wallDark;
-  ctx.fillRect(0, L.floorY - 40, W, 40);
+  ctx.fillRect(0, L.floorY - 40 * L.u, W, 40 * L.u);
   ctx.fillStyle = theme.trim;
-  ctx.fillRect(0, L.floorY - 44, W, 6);
+  ctx.fillRect(0, L.floorY - 44 * L.u, W, 6);
   // Floor.
   ctx.fillStyle = theme.floor;
   ctx.fillRect(0, L.floorY, W, H - L.floorY);
@@ -417,45 +422,232 @@ export function drawRoom(ctx: Ctx, w: number, h: number, k: number, theme: RoomT
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, 22);
   // Door.
-  rr(ctx, L.doorX - 32, L.floorY - 118, 64, 118, 10);
+  const u = Math.min(L.u, 1.3);
+  rr(ctx, L.doorX - 32 * u, L.floorY - 118 * u, 64 * u, 118 * u, 10);
   fs(ctx, theme.trim, lw);
-  rr(ctx, L.doorX - 22, L.floorY - 106, 44, 50, 8);
+  rr(ctx, L.doorX - 22 * u, L.floorY - 106 * u, 44 * u, 50 * u, 8);
   fs(ctx, '#cfe8f2', lw * 0.8);
-  ellipse(ctx, L.doorX + 18, L.floorY - 50, 4, 4);
+  ellipse(ctx, L.doorX + 18 * u, L.floorY - 50 * u, 4, 4);
   ctx.fillStyle = '#f2c45a';
   ctx.fill();
   // Window between door and counter.
-  const winX = (L.doorX + L.counterX) / 2 - 70;
+  const ww = 140 * u;
+  const wh = 74 * u;
+  const winX = (L.doorX + L.counterX) / 2 - ww / 2;
+  const winY = 22 * L.u;
   if (winX > L.doorX + 50) {
-    rr(ctx, winX, 22, 140, 74, 10);
+    rr(ctx, winX, winY, ww, wh, 10);
     fs(ctx, '#cfe8f2', lw);
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.fillRect(winX + 14, 32, 18, 54);
+    ctx.fillRect(winX + 14 * u, winY + 10 * u, 18 * u, wh - 20 * u);
     ctx.fillStyle = theme.trim;
-    ctx.fillRect(winX + 68, 22, 4, 74);
-    ctx.fillRect(winX, 57, 140, 4);
+    ctx.fillRect(winX + ww / 2 - 2, winY, 4, wh);
+    ctx.fillRect(winX, winY + wh / 2 - 2, ww, 4);
     // Little plant on the sill.
-    rr(ctx, winX + 100, 82, 24, 18, 4);
+    const px = winX + ww - 28 * u;
+    const py = winY + wh - 4;
+    rr(ctx, px - 12, py - 4, 24, 18, 4);
     fs(ctx, '#d9844f', lw * 0.8);
     for (const [dx, dy] of [
       [-8, -6],
       [0, -12],
       [8, -6],
     ]) {
-      ellipse(ctx, winX + 112 + dx, 80 + dy, 7, 9);
+      ellipse(ctx, px + dx, py - 6 + dy, 7, 9);
       fs(ctx, '#6fae5a', lw * 0.7);
     }
   }
   // Menu board above the counter.
-  rr(ctx, L.counterX + 24, 12, W - L.counterX - 48, 34, 8);
+  rr(ctx, L.counterX + 40, 6 * L.u, W - L.counterX - 80, 26 * L.u, 7);
   fs(ctx, '#3c3a36', lw);
   // Back counter along the wall: the machines stand on it, behind the staff.
   rr(ctx, L.counterX + 4, L.backY, W - L.counterX, L.floorY - L.backY, 6);
   fs(ctx, theme.wallDark, lw);
   rr(ctx, L.counterX, L.backY - 6, W - L.counterX + 8, 10, 5);
   fs(ctx, theme.counterTop, lw);
+  for (const d of decor) drawDecor(ctx, L, d.slot, d.id);
   ctx.restore();
-  void items;
+}
+
+/** Where each decoration spot is in a room. */
+function decorSpot(L: RoomLayout, slot: string) {
+  const midX = (L.doorX + L.counterX) / 2;
+  switch (slot) {
+    case 'plant':
+      return { x: L.doorX + 58, y: L.floorY };
+    case 'wall':
+      return { x: midX + 120 * Math.min(L.u, 1.2), y: 54 * L.u };
+    case 'wall2':
+      return { x: L.doorX + 92 * Math.min(L.u, 1.2), y: 50 * L.u };
+    default:
+      return { x: midX, y: 0 };
+  }
+}
+
+/** One decoration, drawn into the room texture at its spot. */
+function drawDecor(ctx: Ctx, L: RoomLayout, slot: string, id: string) {
+  const { x, y } = decorSpot(L, slot);
+  const lw = 2.5;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(Math.min(L.u, 1.3), Math.min(L.u, 1.3));
+  ctx.lineCap = 'round';
+  switch (id) {
+    case 'fern':
+    case 'cactus':
+    case 'monstera': {
+      rr(ctx, -16, -30, 32, 30, 6);
+      fs(ctx, id === 'cactus' ? '#d98b6a' : id === 'monstera' ? '#e8e2d6' : '#c9764a', lw);
+      if (id === 'cactus') {
+        rr(ctx, -9, -78, 18, 50, 9);
+        fs(ctx, '#6fae5a', lw);
+        rr(ctx, 6, -64, 16, 10, 5);
+        fs(ctx, '#6fae5a', lw);
+        rr(ctx, 14, -76, 9, 22, 4.5);
+        fs(ctx, '#6fae5a', lw);
+        ellipse(ctx, 0, -80, 5, 5);
+        fs(ctx, '#f28aa6', lw * 0.8);
+      } else {
+        const leaves = id === 'fern' ? 7 : 5;
+        for (let i = 0; i < leaves; i++) {
+          const a = -Math.PI / 2 + (i - (leaves - 1) / 2) * 0.42;
+          ctx.save();
+          ctx.translate(0, -30);
+          ctx.rotate(a + Math.PI / 2);
+          ctx.beginPath();
+          ctx.ellipse(0, -26, id === 'fern' ? 7 : 13, id === 'fern' ? 26 : 22, 0, 0, Math.PI * 2);
+          fs(ctx, id === 'fern' ? '#79b864' : '#3f8f5a', lw * 0.8);
+          ctx.restore();
+        }
+      }
+      break;
+    }
+    case 'clock': {
+      ellipse(ctx, 0, 0, 22, 22);
+      fs(ctx, '#fff8ea', lw);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, -13);
+      ctx.moveTo(0, 0);
+      ctx.lineTo(10, 4);
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      break;
+    }
+    case 'frame':
+    case 'poster': {
+      rr(ctx, -26, -24, 52, 46, 4);
+      fs(ctx, id === 'frame' ? '#8a5a3c' : '#f4efe6', lw);
+      rr(ctx, -19, -17, 38, 32, 3);
+      ctx.fillStyle = id === 'frame' ? '#bfe0f0' : '#f6c7b5';
+      ctx.fill();
+      ctx.fillStyle = id === 'frame' ? '#7cbf6a' : '#e8697d';
+      ctx.beginPath();
+      if (id === 'frame') {
+        ctx.moveTo(-19, 15);
+        ctx.lineTo(-4, -2);
+        ctx.lineTo(8, 8);
+        ctx.lineTo(19, -4);
+        ctx.lineTo(19, 15);
+      } else {
+        ctx.arc(0, -1, 9, 0, Math.PI * 2);
+      }
+      ctx.fill();
+      break;
+    }
+    case 'shelf': {
+      ctx.fillStyle = '#8a5a3c';
+      ctx.fillRect(-46, 14, 92, 6);
+      for (const [dx, c, hh] of [
+        [-32, '#e8697d', 22],
+        [-12, '#f2c45a', 28],
+        [8, '#7cc8a0', 18],
+        [28, '#7a9be0', 24],
+      ] as [number, string, number][]) {
+        rr(ctx, dx - 7, 14 - hh, 14, hh, 4);
+        fs(ctx, c, lw * 0.8);
+      }
+      break;
+    }
+    case 'neon': {
+      ctx.shadowColor = '#ff7ab0';
+      ctx.shadowBlur = 12;
+      ctx.strokeStyle = '#ffb3d1';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(0, 14);
+      ctx.bezierCurveTo(-30, -6, -16, -28, 0, -12);
+      ctx.bezierCurveTo(16, -28, 30, -6, 0, 14);
+      ctx.stroke();
+      break;
+    }
+    case 'aquarium': {
+      rr(ctx, -34, -24, 68, 46, 6);
+      fs(ctx, '#9fd8ec', lw);
+      ctx.fillStyle = '#f29a4a';
+      ellipse(ctx, -6, -2, 9, 5);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(2, -2);
+      ctx.lineTo(10, -8);
+      ctx.lineTo(10, 4);
+      ctx.fill();
+      ctx.fillStyle = '#5f9e4a';
+      ctx.fillRect(18, 2, 4, 20);
+      ctx.fillRect(-26, 8, 4, 14);
+      break;
+    }
+    case 'lamp': {
+      ctx.strokeStyle = OUTLINE;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, 30);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-22, 50);
+      ctx.lineTo(-10, 30);
+      ctx.lineTo(10, 30);
+      ctx.lineTo(22, 50);
+      ctx.closePath();
+      fs(ctx, '#3f7d63', lw);
+      ellipse(ctx, 0, 52, 8, 5);
+      ctx.fillStyle = '#fff1b8';
+      ctx.fill();
+      break;
+    }
+    case 'bunting':
+    case 'lights': {
+      ctx.strokeStyle = OUTLINE;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-150, 6);
+      ctx.quadraticCurveTo(0, 34, 150, 6);
+      ctx.stroke();
+      const colors = id === 'bunting' ? ['#e8697d', '#f2c45a', '#7cc8a0', '#7a9be0'] : ['#fff1b8'];
+      for (let i = 0; i < 9; i++) {
+        const t = (i + 0.5) / 9;
+        const px = -150 + 300 * t;
+        const py = 6 + 28 * 4 * t * (1 - t);
+        ctx.fillStyle = colors[i % colors.length];
+        if (id === 'bunting') {
+          ctx.beginPath();
+          ctx.moveTo(px - 10, py);
+          ctx.lineTo(px + 10, py);
+          ctx.lineTo(px, py + 18);
+          ctx.closePath();
+          ctx.fill();
+        } else {
+          ctx.shadowColor = '#ffe27a';
+          ctx.shadowBlur = 8;
+          ellipse(ctx, px, py + 6, 5, 7);
+          ctx.fill();
+        }
+      }
+      break;
+    }
+  }
+  ctx.restore();
 }
 
 /** Size in design units of the front counter piece for a floor `w` x `h`. Place its top-left at (counterX - 8, counterY - 6). */

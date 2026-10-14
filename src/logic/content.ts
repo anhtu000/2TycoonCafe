@@ -67,6 +67,17 @@ export interface CafeDef {
   goals: GoalDef[];
   offline: { efficiency: number; capHours: number; minSeconds: number };
   rush: { seconds: number; mult: number };
+  /** 7-day gift: minutes of income, hearts, free adoptions. */
+  daily: { coinsMin?: number; hearts?: number; ticket?: number }[];
+  rewarded: {
+    /** Seconds between two uses of a boost (Rush Hour, free helper). x1.5 when the portal gives rewards without ads. */
+    cooldown: number;
+    freeUpgradeCooldown: number;
+    /** The free upgrade goes on the dearest card the player cannot afford yet, within this many seconds of income. */
+    freeUpgradeWindow: number;
+    offlineMult: number;
+    dailyMult: number;
+  };
 }
 
 export type Perk = 'speed' | 'tips';

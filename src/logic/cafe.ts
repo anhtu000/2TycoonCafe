@@ -1,7 +1,7 @@
 // The whole economy of one cafe run, in plain TypeScript with no Phaser import.
 // The play scene and the balance simulator (tools/sim) both drive this class,
 // so simulated pacing matches the real game.
-import { Rng, rollRarity } from '../../core/rng.ts';
+import { pityLeft, rarityOdds, Rng, rollRarity } from '../../core/rng.ts';
 import type { AnimalDef, Content, ItemDef, StatId, UpgradeDef } from './content.ts';
 
 export type RunMode = 'main' | 'timed';
@@ -152,6 +152,8 @@ export class Cafe {
   private upgradeIndex: Map<string, UpgradeDef>;
   private animalIndex: Map<string, AnimalDef>;
   private earnedStep = 0;
+  /** Tip multiplier from outside the run (decorations, main run only). */
+  extraTips = 1;
   private autoEarnedStep = 0;
 
   readonly content: Content;
@@ -244,7 +246,7 @@ export class Cafe {
   itemValue(id: string, level = this.s.items[id].level) {
     const def = this.item(id);
     const staff = this.s.assign[id];
-    const tips = this.stat('tips') * (staff ? this.animalTips(staff) : 1);
+    const tips = this.stat('tips') * this.extraTips * (staff ? this.animalTips(staff) : 1);
     return def.value * level * this.milestoneMult(level, 'value') * tips;
   }
 
@@ -358,6 +360,23 @@ export class Cafe {
     if (this.upgradeMaxed(id) || !this.pay(this.upgradeCost(id))) return false;
     this.s.levels[id] = this.level(id) + 1;
     return true;
+  }
+
+  /** Free item level (rewarded ad). */
+  grantItemLevel(id: string) {
+    if (!this.canLevelItem(id)) return false;
+    this.s.items[id].level += 1;
+    return true;
+  }
+
+  /** Chance of each rarity for one adoption (shown to players). */
+  adoptOdds(): number[] {
+    return rarityOdds(this.content.staff.rarities.map((r) => r.weight));
+  }
+
+  /** Adoptions left before pity rule i forces its rarity. */
+  pityLeft(i: number) {
+    return pityLeft(this.content.staff.pity, this.s.pity, i);
   }
 
   /** Free level for a rewarded ad. */
