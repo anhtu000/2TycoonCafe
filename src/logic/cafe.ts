@@ -2,7 +2,7 @@
 // The play scene and the balance simulator (tools/sim) both drive this class,
 // so simulated pacing matches the real game.
 import { pityLeft, rarityOdds, Rng, rollRarity } from '../../core/rng.ts';
-import type { AnimalDef, Content, ItemDef, StatId, TaskDef, UpgradeDef } from './content.ts';
+import type { AnimalDef, Content, ItemDef, OrderType, StatId, TaskDef, UpgradeDef } from './content.ts';
 
 export type RunMode = 'main' | 'timed';
 export type RewardId = 'rush' | 'freeAdopt' | 'freeUpgrade';
@@ -98,6 +98,61 @@ export interface RunState {
   buys?: number;
   /** Value of `buys` when each reward was last used. */
   usedAt?: Partial<Record<RewardId, number>>;
+  /** Customers served by the player's tap. */
+  hand?: number;
+  /** Servings sold per menu item. */
+  sold?: Record<string, number>;
+  /** Coins paid by customers (VIP bonus included; no rewards). */
+  sales?: number;
+  /** Today's orders and special (main cafe after five stars). */
+  day?: DayState;
+}
+
+/** One daily order. need: amount to reach from the start of the day. item: the menu item (sold, special). */
+export interface OrderState {
+  type: OrderType;
+  need: number;
+  item?: string;
+  claimed?: boolean;
+}
+
+/** Counters a day's orders count from. */
+export interface DayBase {
+  served: number;
+  hand: number;
+  vips: number;
+  buys: number;
+  sales: number;
+  sold: Record<string, number>;
+}
+
+export interface DayState {
+  /** The player's own date, YYYY-MM-DD (core dayKey). */
+  key: string;
+  /** Menu item selling for special.mult times more today, or null. */
+  special: string | null;
+  orders: OrderState[];
+  base: DayBase;
+}
+
+/** What claiming an order gave. bonus: every order of the day is now claimed (free adoptions). */
+export interface OrderClaim {
+  coins: number;
+  bonus: number;
+}
+
+/** Small stable hash of a string (FNV-1a), to seed a day's picks. */
+function hashKey(key: string) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 0x01000193);
+  return h >>> 0;
+}
+
+/** Round to 2 significant digits, so order amounts read well ("12K", not "11,734"). */
+function roundNice(n: number) {
+  if (n < 100) return Math.max(1, Math.round(n));
+  const p = 10 ** (Math.floor(Math.log10(n)) - 1);
+  return Math.round(n / p) * p;
 }
 
 export type CafeEvent =
@@ -271,7 +326,7 @@ export class Cafe {
     const def = this.item(id);
     const staff = this.s.assign[id];
     const tips = this.stat('tips') * this.extraTips * (staff ? this.animalTips(staff) : 1);
-    return def.value * level * this.milestoneMult(level, 'value') * tips;
+    return def.value * level * this.milestoneMult(level, 'value') * tips * (this.specialItem() === id ? this.content.cafe.special!.mult : 1);
   }
 
   /** Seconds of work per serving at speed 1. */
@@ -328,6 +383,7 @@ export class Cafe {
     if (show.served !== undefined && this.s.served < show.served) return false;
     if (show.staff !== undefined && this.staffCount() < show.staff) return false;
     if (show.floor && !this.s.floors[this.content.cafe.floors.findIndex((f) => f.id === show.floor)].open) return false;
+    if (show.stars !== undefined && this.stars() < show.stars) return false;
     return true;
   }
 
@@ -446,16 +502,21 @@ export class Cafe {
       rarity = this.rarityIndex(animal);
     } else {
       rarity = rollRarity(this.rng, staff.rarities.map((r) => r.weight), staff.pity, this.s.pity, { floor: RARITY_FLOOR });
-      const all = staff.animals.filter((a) => a.rarity === staff.rarities[rarity].id);
+      const all = staff.animals.filter((a) => a.rarity === staff.rarities[rarity].id && !a.exclusive);
       // While a station still has no animal, a new face is always picked when one is left in that rarity.
       const fresh = all.filter((a) => !this.s.staff[a.id]);
       const pool = this.staffCount() < this.slotCount() && fresh.length ? fresh : all;
       animal = this.rng.pick(pool);
     }
     this.s.rng = this.rng.state;
+    return this.addCopy(animal, rarity);
+  }
+
+  /** One more copy of an animal: a new helper, a level, or half the adoption price at max level. */
+  private addCopy(animal: AnimalDef, rarity: number): AdoptResult {
     const had = this.s.staff[animal.id] ?? 0;
     let refund = 0;
-    if (had >= staff.maxLevel) {
+    if (had >= this.content.staff.maxLevel) {
       // Max level: the extra copy pays back half the adoption price.
       refund = Math.ceil(this.adoptCost() / 2);
       this.addCoins(refund, false);
@@ -463,6 +524,28 @@ export class Cafe {
     this.reassign();
     this.checkGoals(this.pending);
     return { animal, rarity, isNew: had === 0, level: this.s.staff[animal.id], refund };
+  }
+
+  /** A gift animal (daily gift): one copy of this animal, outside the adoption roll and its price. */
+  giftAnimal(id: string): AdoptResult {
+    const animal = this.animal(id);
+    return this.addCopy(animal, this.rarityIndex(animal));
+  }
+
+  /**
+   * The Rare pal of the daily gift: a Rare not owned yet, else an Epic not owned yet, else a level on a Rare.
+   * Picked with the run's random numbers, outside the pity counters.
+   */
+  giftRarePal(): AdoptResult {
+    const staff = this.content.staff;
+    const of = (r: string) => staff.animals.filter((a) => a.rarity === r && !a.exclusive);
+    const fresh = (list: AnimalDef[]) => list.filter((a) => !this.s.staff[a.id]);
+    const rare = staff.rarities[1]?.id ?? staff.rarities[0].id;
+    const epic = staff.rarities[2]?.id ?? rare;
+    const pool = fresh(of(rare)).length ? fresh(of(rare)) : fresh(of(epic)).length ? fresh(of(epic)) : of(rare);
+    const animal = this.rng.pick(pool);
+    this.s.rng = this.rng.state;
+    return this.giftAnimal(animal.id);
   }
 
   /** Puts the strongest animals at the most valuable stations. */
@@ -673,6 +756,9 @@ export class Cafe {
     coins += vipBonus;
     this.addCoins(coins, false);
     s.served += 1;
+    if (hand) s.hand = (s.hand ?? 0) + 1;
+    (s.sold ??= {})[c.item] = (s.sold[c.item] ?? 0) + 1;
+    s.sales = (s.sales ?? 0) + coins;
     c.phase = 'leave';
     c.t = cfg.customers.leave;
     c.happy = true;
@@ -842,6 +928,117 @@ export class Cafe {
     const done = this.taskDone();
     if (done && !this.lastTaskDone) events.push({ type: 'taskDone' });
     this.lastTaskDone = done;
+  }
+
+  // ---------- daily orders and today's special ----------
+
+  /** Daily orders and today's special run in the main cafe once it has five stars. */
+  dailyOn() {
+    return this.s.mode === 'main' && this.s.finishedAt !== null;
+  }
+
+  /** Menu item on special today, or null. */
+  specialItem(): string | null {
+    return this.content.cafe.special && this.s.day && this.dailyOn() ? this.s.day.special : null;
+  }
+
+  private dayBase(): DayBase {
+    const s = this.s;
+    return { served: s.served, hand: s.hand ?? 0, vips: s.vips ?? 0, buys: s.buys ?? 0, sales: s.sales ?? 0, sold: { ...(s.sold ?? {}) } };
+  }
+
+  /**
+   * Starts day `key` (the player's own date, core dayKey): a new special and new orders, counted from now.
+   * Returns true when a new day began (false: same day, or the cafe is not finished yet).
+   */
+  startDay(key: string): boolean {
+    const s = this.s;
+    if (!this.dailyOn() || s.day?.key === key) return false;
+    const rng = new Rng(hashKey(`${key}|${s.served}`));
+    const menu = this.content.cafe.items.filter((i) => s.items[i.id].unlocked).map((i) => i.id);
+    const prev = s.day?.special ?? null;
+    let special: string | null = null;
+    if (this.content.cafe.special && menu.length) {
+      const pool = menu.length > 1 ? menu.filter((id) => id !== prev) : menu;
+      special = rng.pick(pool);
+    }
+    const cfg = this.content.tasks.orders;
+    const pool = cfg.pool.filter((o) => o.type !== 'special' || special !== null);
+    // Shuffle, then take the first perDay kinds.
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(rng.next() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const orders: OrderState[] = pool.slice(0, cfg.perDay).map((o) => {
+      if (o.type === 'sales') {
+        const min = rng.pick(o.min!);
+        return { type: o.type, need: roundNice(Math.max(s.rate, 1) * 60 * min) };
+      }
+      const need = rng.pick(o.n!);
+      if (o.type === 'special') return { type: o.type, need, item: special! };
+      if (o.type === 'sold') {
+        const others = menu.filter((id) => id !== special);
+        return { type: o.type, need, item: rng.pick(others.length ? others : menu) };
+      }
+      return { type: o.type, need };
+    });
+    s.day = { key, special, orders, base: this.dayBase() };
+    return true;
+  }
+
+  /** Today's orders (empty before five stars or before the first day starts). */
+  orders(): OrderState[] {
+    return this.dailyOn() && this.s.day ? this.s.day.orders : [];
+  }
+
+  orderProgress(o: OrderState): { have: number; need: number } {
+    const s = this.s;
+    const b = s.day?.base ?? this.dayBase();
+    let have = 0;
+    switch (o.type) {
+      case 'served':
+        have = s.served - b.served;
+        break;
+      case 'hand':
+        have = (s.hand ?? 0) - b.hand;
+        break;
+      case 'vips':
+        have = (s.vips ?? 0) - b.vips;
+        break;
+      case 'sold':
+      case 'special':
+        have = (s.sold?.[o.item!] ?? 0) - (b.sold[o.item!] ?? 0);
+        break;
+      case 'buys':
+        have = (s.buys ?? 0) - b.buys;
+        break;
+      case 'sales':
+        have = Math.floor((s.sales ?? 0) - b.sales);
+        break;
+    }
+    return { have: Math.max(0, have), need: o.need };
+  }
+
+  orderDone(o: OrderState) {
+    const p = this.orderProgress(o);
+    return p.have >= p.need;
+  }
+
+  /** Coins an order pays: seconds of current income, at least rewardMin. */
+  orderReward() {
+    const cfg = this.content.tasks.orders;
+    return Math.max(cfg.rewardMin, Math.round(Math.max(0, this.s.rate) * cfg.rewardSec));
+  }
+
+  /** Claims order i when it is done. The last one of the day also gives orders.bonusTickets free adoptions. */
+  claimOrder(i: number): OrderClaim | null {
+    const o = this.orders()[i];
+    if (!o || o.claimed || !this.orderDone(o)) return null;
+    const coins = this.orderReward();
+    o.claimed = true;
+    this.addCoins(coins, false);
+    const bonus = this.orders().every((x) => x.claimed) ? this.content.tasks.orders.bonusTickets : 0;
+    return { coins, bonus };
   }
 
   // ---------- rewards ----------

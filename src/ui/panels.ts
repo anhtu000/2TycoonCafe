@@ -51,7 +51,12 @@ export function showAdoptReveal(scene: Phaser.Scene, cafe: Cafe, r: AdoptResult,
   pic.setDisplaySize(250 / ANIMAL_ASPECT, 250);
   const name = label(scene, 0, y0 + 160, app.t(`animal.${r.animal.id}`), 46);
   const odds = cafe.adoptOdds()[r.rarity];
-  const rar = label(scene, 0, y0 + 210, app.t('adopt.odds', { r: app.t(`rarity.${rarity.id}`), n: oneIn(odds / cafe.content.staff.animals.filter((a) => a.rarity === rarity.id).length) }), 30, RARITY_CSS[r.rarity]);
+  // Gift animals (7-day gift) are not in the adoption roll: say where they come from instead of odds.
+  const rollable = cafe.content.staff.animals.filter((a) => a.rarity === rarity.id && !a.exclusive).length;
+  const rarText = r.animal.exclusive
+    ? app.t('adopt.gift', { r: app.t(`rarity.${rarity.id}`) })
+    : app.t('adopt.odds', { r: app.t(`rarity.${rarity.id}`), n: oneIn(odds / rollable) });
+  const rar = label(scene, 0, y0 + 210, rarText, 30, RARITY_CSS[r.rarity]);
   const station = Object.entries(cafe.s.assign).find(([, a]) => a === r.animal.id)?.[0];
   const lines = [
     r.refund > 0 ? app.t('adopt.maxed', { n: formatNumber(r.refund) }) : r.isNew ? perkText(cafe, r.animal.id) : `${app.t('book.level', { n: r.level })} · ${app.t('perk.base', { n: cafe.animalSpeed(r.animal.id).toFixed(2) })}`,
@@ -74,7 +79,8 @@ export function showAdoptReveal(scene: Phaser.Scene, cafe: Cafe, r: AdoptResult,
 /** Every animal: met ones in colour with level and perk, others as silhouettes; odds and pity on top. */
 export function showStaffBook(scene: Phaser.Scene, cafe: Cafe | null, onClose?: () => void): Panel {
   const vp = app.viewport.info;
-  const cols = vp.portrait ? 3 : 5;
+  // Landscape: two rows at most, so the book fits a 16:9 frame.
+  const cols = vp.portrait ? 3 : Math.min(6, Math.max(5, Math.ceil(content.staff.animals.length / 2)));
   const rows = Math.ceil(content.staff.animals.length / cols);
   const cellW = 190;
   const cellH = 220;
@@ -108,7 +114,7 @@ export function showStaffBook(scene: Phaser.Scene, cafe: Cafe | null, onClose?: 
     const pic = scene.add.image(cx, cy + 128, met ? animalTexture(scene, a.id, { staff: rIdx }, 'neutral') : silhouetteTexture(scene, a.id)).setOrigin(0.5, 1);
     pic.setDisplaySize(118 / ANIMAL_ASPECT, 118);
     const name = label(scene, cx, cy + 150, met ? app.t(`animal.${a.id}`) : app.t('book.unknown'), 24);
-    const sub = label(scene, cx, cy + 180, level > 0 ? app.t('book.level', { n: level }) : app.t(`rarity.${a.rarity}`), 20, RARITY_CSS[rIdx], '700');
+    const sub = label(scene, cx, cy + 180, level > 0 ? app.t('book.level', { n: level }) : a.exclusive && !met ? app.t('book.daily7') : app.t(`rarity.${a.rarity}`), 20, RARITY_CSS[rIdx], '700');
     panel.content.add([card, pic, name, sub]);
   });
   return panel;

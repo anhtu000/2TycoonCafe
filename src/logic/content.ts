@@ -72,8 +72,13 @@ export interface CafeDef {
   goals: GoalDef[];
   offline: { efficiency: number; capHours: number; minSeconds: number };
   rush: { seconds: number; mult: number };
-  /** 7-day gift: minutes of income, hearts, free adoptions. */
-  daily: { coinsMin?: number; hearts?: number; ticket?: number }[];
+  /**
+   * 7-day gift: minutes of income, free adoptions (ticket), a Rare pal not owned yet (rarePal),
+   * or an animal only this gift gives (animal: an exclusive animal id).
+   */
+  daily: { coinsMin?: number; hearts?: number; ticket?: number; rarePal?: number; animal?: string }[];
+  /** Today's special (after five stars): one menu item a day sells for mult times more. */
+  special?: { mult: number };
   rewarded: {
     /** Seconds between two uses of a boost (Rush Hour, free helper). x1.5 when the portal gives rewards without ads. */
     cooldown: number;
@@ -94,6 +99,8 @@ export interface AnimalDef {
   rarity: string;
   perk: Perk;
   perkValue: number;
+  /** Not in the adoption roll: comes only from where this says ("daily": the 7-day gift). */
+  exclusive?: string;
 }
 
 export interface RarityDef {
@@ -120,6 +127,8 @@ export interface ShowRule {
   served?: number;
   staff?: number;
   floor?: string;
+  /** Shown from this many stars (5: after the cafe is finished). */
+  stars?: number;
 }
 
 export interface UpgradeDef {
@@ -152,11 +161,36 @@ export interface TaskDef {
   sec?: number;
 }
 
+export type OrderType = 'served' | 'hand' | 'vips' | 'sold' | 'special' | 'buys' | 'sales';
+
+/**
+ * One kind of daily order (main cafe after five stars). Counted from the start of the day.
+ * served: customers served. hand: served by the player's tap. vips: VIPs served. sold: servings of one menu item
+ * (picked that day). special: servings of today's special. buys: purchases with coins. sales: coins from customers.
+ * n: the amounts one is picked from. min (sales only): minutes of current income, picked the same way.
+ */
+export interface OrderDef {
+  type: OrderType;
+  n?: number[];
+  min?: number[];
+}
+
+export interface OrdersDef {
+  perDay: number;
+  /** Reward of each order: this many seconds of current income, at least rewardMin coins. */
+  rewardSec: number;
+  rewardMin: number;
+  /** Free adoptions for finishing every order of the day. */
+  bonusTickets: number;
+  pool: OrderDef[];
+}
+
 export interface TasksDef {
   /** Reward: this many seconds of current income, at least rewardMin coins. */
   rewardSec: number;
   rewardMin: number;
   tasks: TaskDef[];
+  orders: OrdersDef;
 }
 
 export interface Content {
@@ -167,6 +201,7 @@ export interface Content {
 }
 
 const TASK_TYPES: TaskType[] = ['served', 'vips', 'itemLevel', 'unlock', 'floor', 'seats', 'upgrade', 'adopts', 'staff', 'decor', 'earned'];
+const ORDER_TYPES: OrderType[] = ['served', 'hand', 'vips', 'sold', 'special', 'buys', 'sales'];
 
 export function checkContent(raw: { cafe: unknown; staff: unknown; upgrades: unknown; tasks: unknown }): Content {
   const c = contentChecker('src/content');
@@ -203,14 +238,20 @@ export function checkContent(raw: { cafe: unknown; staff: unknown; upgrades: unk
   c.uniqueIds(staff.animals, 'animal');
   const rarityIds = staff.rarities.map((r) => r.id);
   for (const a of staff.animals) c.ref(a.rarity, rarityIds, `animal ${a.id} rarity`);
-  for (const r of rarityIds) c.need(staff.animals.some((a) => a.rarity === r), `no animal of rarity ${r}`);
-  c.ref(staff.adopt.firstGuided, staff.animals.map((a) => a.id), 'adopt.firstGuided');
+  for (const r of rarityIds) c.need(staff.animals.some((a) => a.rarity === r && !a.exclusive), `no animal of rarity ${r} in the adoption roll`);
+  c.ref(staff.adopt.firstGuided, staff.animals.filter((a) => !a.exclusive).map((a) => a.id), 'adopt.firstGuided');
+  for (const [i, d] of cafe.daily.entries()) {
+    if (d.animal) c.need(staff.animals.some((a) => a.id === d.animal && a.exclusive === 'daily'), `daily day ${i + 1}: animal must be an exclusive "daily" animal`);
+    if (d.rarePal !== undefined) c.need(d.rarePal >= 1, `daily day ${i + 1}: rarePal >= 1`);
+  }
+  if (cafe.special) c.need(cafe.special.mult > 1, 'special.mult must be above 1');
 
   c.uniqueIds(upgrades, 'upgrade');
   for (const u of upgrades) {
     c.positive(u.cost, `upgrade ${u.id} cost`);
     c.need(u.max >= 1, `upgrade ${u.id} max`);
     if (u.show.floor) c.ref(u.show.floor, floorIds, `upgrade ${u.id} show.floor`);
+    if (u.show.stars !== undefined) c.need(u.show.stars >= 1 && u.show.stars <= cafe.goals.length, `upgrade ${u.id} show.stars 1..${cafe.goals.length}`);
   }
 
   c.positive(tasks.rewardSec, 'tasks.rewardSec');
@@ -240,6 +281,18 @@ export function checkContent(raw: { cafe: unknown; staff: unknown; upgrades: unk
     if (t.type === 'itemLevel') c.need((t.n ?? 0) <= cafe.maxLevel, `task ${t.id}: level above maxLevel`);
     if (t.type === 'staff') c.need((t.n ?? 0) <= staff.animals.length, `task ${t.id}: more helpers than animals`);
     if (t.type !== 'unlock' && t.type !== 'floor') c.need((t.n ?? 0) >= 1, `task ${t.id} needs n >= 1`);
+  }
+  const orders = tasks.orders;
+  c.need(!!orders, 'tasks.orders is missing');
+  if (orders) {
+    c.positive(orders.rewardSec, 'orders.rewardSec');
+    c.need(orders.perDay >= 1 && orders.perDay <= orders.pool.length, 'orders.perDay: 1..pool size');
+    for (const o of orders.pool) {
+      c.ref(o.type, ORDER_TYPES, 'order type');
+      const amounts = o.type === 'sales' ? o.min : o.n;
+      c.need(!!amounts && amounts.length > 0 && amounts.every((x) => x > 0), `order ${o.type}: ${o.type === 'sales' ? 'min' : 'n'} needs positive amounts`);
+    }
+    c.need(new Set(orders.pool.map((o) => o.type)).size === orders.pool.length, 'orders.pool: one entry per type');
   }
   c.done();
   return { cafe, staff, upgrades, tasks };

@@ -42,6 +42,8 @@ export const LOOKS: Record<string, Look> = {
   redpanda: { fur: '#c8572a', light: '#fff3e6', dark: '#5a2a1a', ear: 'pointy', marking: 'redpanda', nose: '#2c1d17', cheekFluff: true },
   panda: { fur: '#f6f4ef', light: '#ffffff', dark: '#2c2c33', ear: 'round', marking: 'pandaEyes', nose: '#2c2c33', wide: 1.06, blush: true },
   axolotl: { fur: '#f6a9c4', light: '#ffd8e6', dark: '#e0628f', ear: 'gills', marking: 'none', nose: '#c4486f', wide: 1.2, blush: true },
+  // 7-day gift only (staff.json exclusive "daily")
+  snowfox: { fur: '#d6e4f4', light: '#ffffff', dark: '#7f9fc9', ear: 'pointy', marking: 'cheekPatch', nose: '#3b2a22', cheekFluff: true, blush: true },
   // Customers (not collectable)
   bear: { fur: '#8a5a3c', light: '#c99a72', dark: '#5f3b26', ear: 'round', marking: 'none', nose: '#3b2a22', wide: 1.05 },
   mouse: { fur: '#b8b0aa', light: '#f1e6e0', dark: '#e3a9a9', ear: 'round', marking: 'none', nose: '#e47c8a', whiskers: true, blush: true },

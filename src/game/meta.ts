@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
 import { app, dailyDayIndex, dailyStatus, formatNumber, Panel, showDailyPanel, toast } from '@core';
-import { Cafe, newRunState } from '../logic/cafe.ts';
+import { Cafe, newRunState, type AdoptResult } from '../logic/cafe.ts';
 import { decorTipMult } from '../logic/decor.ts';
-import { coinIcon, COIN_COLOR, pawIcon } from '../render/icons';
+import { coinIcon, COIN_COLOR, foxIcon, pawIcon } from '../render/icons';
+import { RARITY_HEX } from '../render/textures';
 import { preset, save } from '../save';
 import { PRESETS } from './presets';
 
@@ -42,13 +43,27 @@ export function takeDailyOffer(): boolean {
   return true;
 }
 
-/** 7-day gift: minutes of income for the main cafe and free helpers. */
-export function openDaily(scene: Phaser.Scene, onScreen: Cafe | null, onClaimed?: () => void, onClose?: () => void): Panel {
+/**
+ * 7-day gift: minutes of income for the main cafe, free helpers, a Rare pal on day 3 and the Snow Fox on day 7
+ * (CLAUDE.md 5a, retention batch 1). The tiles show the big days ahead, so players know what they come back for.
+ * onGift: animals the gift brought (the play screen shows each one).
+ */
+export function openDaily(
+  scene: Phaser.Scene,
+  onScreen: Cafe | null,
+  onClaimed?: () => void,
+  onClose?: () => void,
+  onGift?: (gifts: AdoptResult[], cafe: Cafe) => void,
+): Panel {
   const days = content.cafe.daily;
   const views = days.map((d) =>
-    d.ticket
-      ? { label: app.t('daily.ticket'), icon: pawIcon, iconColor: 0xffd34d }
-      : { label: app.t('daily.coins', { n: d.coinsMin ?? 0 }), icon: coinIcon, iconColor: COIN_COLOR },
+    d.animal
+      ? { label: app.t(`animal.${d.animal}`), icon: d.animal === 'snowfox' ? foxIcon : pawIcon, iconColor: 0xeaf4ff }
+      : d.rarePal
+        ? { label: app.t('daily.rarePal'), icon: pawIcon, iconColor: RARITY_HEX[1] }
+        : d.ticket
+          ? { label: app.t('daily.ticket'), icon: pawIcon, iconColor: 0xffd34d }
+          : { label: app.t('daily.coins', { n: d.coinsMin ?? 0 }), icon: coinIcon, iconColor: COIN_COLOR },
   );
   return showDailyPanel(scene, {
     state: save.data.daily,
@@ -62,15 +77,23 @@ export function openDaily(scene: Phaser.Scene, onScreen: Cafe | null, onClaimed?
         save.data.tickets += d.ticket * mult;
         parts.push(app.t('toast.ticket'));
       }
+      const cafe = onScreen && onScreen.s.mode === 'main' ? onScreen : mainCafe();
       if (d.coinsMin) {
-        const cafe = onScreen && onScreen.s.mode === 'main' ? onScreen : mainCafe();
         const coins = Math.max(50, Math.round(Math.max(cafe.s.rate, 1) * 60 * d.coinsMin * mult));
         cafe.addCoins(coins, false);
         parts.push(`+${formatNumber(coins)}`);
       }
+      // Animals: x2 (ad) gives two copies.
+      const gifts: AdoptResult[] = [];
+      for (let k = 0; k < (d.rarePal ?? 0) * mult; k++) gifts.push(cafe.giftRarePal());
+      if (d.animal) for (let k = 0; k < mult; k++) gifts.push(cafe.giftAnimal(d.animal));
+      for (const g of gifts) noteAnimal(g.animal.id, g.level);
+      const last = gifts[gifts.length - 1];
+      if (last) parts.push(last.isNew || gifts.length > 1 ? app.t('toast.gift', { name: app.t(`animal.${last.animal.id}`) }) : app.t('toast.giftLevel', { name: app.t(`animal.${last.animal.id}`), n: last.level }));
       save.flush();
       if (parts.length) toast(scene, parts.join('  '));
       onClaimed?.();
+      if (gifts.length) onGift?.(gifts, cafe);
     },
     onClose,
   });

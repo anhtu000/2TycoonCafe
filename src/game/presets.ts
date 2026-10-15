@@ -1,6 +1,7 @@
-// Prepared states for testing on a phone or in the bot (web build only): #staff, #dessert, #finish.
+// Prepared states for testing on a phone or in the bot (web build only): #staff, #dessert, #finish,
+// #daily (five stars: daily orders, today's special, Night Shift), #giftrare and #giftfox (the 7-day gift on day 3 or 7).
 // Each preset saves under its own key (save.ts), so real progress is never touched.
-import { app } from '@core';
+import { app, dayKey } from '@core';
 import { Cafe, newRunState } from '../logic/cafe.ts';
 import { save } from '../save';
 import { content } from './content';
@@ -68,4 +69,36 @@ export const PRESETS: Record<string, () => void> = {
     levels(cafe, 'bubbletea', 24);
     cafe.s.coins = 5e9;
   },
+  // Five stars: the day's orders and special start when the cafe opens.
+  daily: () => {
+    PRESETS.finish();
+    const cafe = new Cafe(content, save.data.run!);
+    cafe.s.coins = 1e15;
+    levels(cafe, 'bubbletea', 25);
+    cafe.s.finishedAt = 40 * 60;
+    cafe.s.time = 40 * 60;
+    cafe.s.coins = 2e10;
+    cafe.s.rate = 3e7;
+    cafe.s.autoRate = 2e7;
+    // The task chain as a player would have it by now: every task already done is claimed.
+    while (cafe.claimTask() > 0);
+    cafe.s.coins = 2e10;
+    save.data.firstFinishMs = 40 * 60 * 1000;
+  },
+  // The 7-day gift opens on day 3 (Rare pal) or day 7 (Snow Fox).
+  giftrare: () => {
+    PRESETS.staff();
+    gift(3);
+  },
+  giftfox: () => {
+    PRESETS.daily();
+    gift(7);
+  },
 };
+
+/** Yesterday was day n - 1 of the streak, so today's gift is day n. */
+function gift(n: number) {
+  const y = new Date();
+  y.setDate(y.getDate() - 1);
+  save.data.daily = { lastClaim: dayKey(y), streak: n - 1 };
+}

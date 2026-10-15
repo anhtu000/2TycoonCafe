@@ -155,6 +155,63 @@ export const taskIcon: GlyphDraw = (g, size, color) => {
   g.strokePath();
 };
 
+/** Daily orders: a calendar page with a tick. */
+export const calendarIcon: GlyphDraw = (g, size, color) => {
+  const s = size / 2;
+  g.fillStyle(color, 1);
+  g.fillRoundedRect(-s * 0.85, -s * 0.72, s * 1.7, s * 1.62, s * 0.2);
+  g.fillRoundedRect(-s * 0.52, -s * 0.98, s * 0.22, s * 0.46, s * 0.1);
+  g.fillRoundedRect(s * 0.3, -s * 0.98, s * 0.22, s * 0.46, s * 0.1);
+  g.fillStyle(0x000000, 0.3);
+  g.fillRect(-s * 0.85, -s * 0.32, s * 1.7, s * 0.12);
+  g.lineStyle(s * 0.18, 0x3b2a22, 0.85);
+  g.beginPath();
+  g.moveTo(-s * 0.36, s * 0.3);
+  g.lineTo(-s * 0.06, s * 0.6);
+  g.lineTo(s * 0.42, s * 0.02);
+  g.strokePath();
+};
+
+/** Night Shift: a crescent moon and two small stars. */
+export const moonIcon: GlyphDraw = (g, size, color) => {
+  const s = size / 2;
+  g.fillStyle(color, 1);
+  g.beginPath();
+  g.arc(-s * 0.12, 0, s * 0.85, Math.PI * 0.35, Math.PI * 1.65, false);
+  g.arc(s * 0.38, 0, s * 0.766, Math.PI * 1.452, Math.PI * 0.548, true);
+  g.closePath();
+  g.fillPath();
+  g.fillCircle(s * 0.62, -s * 0.5, s * 0.13);
+  g.fillCircle(s * 0.78, s * 0.12, s * 0.09);
+};
+
+/** Snow Fox head (7-day gift tile). */
+export const foxIcon: GlyphDraw = (g, size, color) => {
+  const s = size / 2;
+  g.fillStyle(color, 1);
+  g.fillTriangle(-s * 0.9, -s * 0.12, -s * 0.66, -s * 0.98, -s * 0.16, -s * 0.44);
+  g.fillTriangle(s * 0.9, -s * 0.12, s * 0.66, -s * 0.98, s * 0.16, -s * 0.44);
+  g.fillPoints(
+    V([
+      { x: -s * 0.95, y: -s * 0.16 },
+      { x: -s * 0.5, y: -s * 0.52 },
+      { x: s * 0.5, y: -s * 0.52 },
+      { x: s * 0.95, y: -s * 0.16 },
+      { x: s * 0.72, y: s * 0.22 },
+      { x: 0, y: s * 0.86 },
+      { x: -s * 0.72, y: s * 0.22 },
+    ]),
+    true,
+  );
+  g.fillStyle(0x000000, 0.2);
+  g.fillTriangle(-s * 0.72, -s * 0.24, -s * 0.62, -s * 0.76, -s * 0.34, -s * 0.46);
+  g.fillTriangle(s * 0.72, -s * 0.24, s * 0.62, -s * 0.76, s * 0.34, -s * 0.46);
+  g.fillStyle(0x3b2a22, 0.9);
+  g.fillCircle(-s * 0.32, -s * 0.08, s * 0.1);
+  g.fillCircle(s * 0.32, -s * 0.08, s * 0.1);
+  g.fillEllipse(0, s * 0.56, s * 0.24, s * 0.16);
+};
+
 /** Icons of the cafe-wide upgrades. */
 export const UPGRADE_ICONS: Record<string, GlyphDraw> = {
   smile: (g, size, c) => {
@@ -201,6 +258,7 @@ export const UPGRADE_ICONS: Record<string, GlyphDraw> = {
     g.fillRoundedRect(-s * 0.85, -s * 0.6, s * 0.36, s * 1.2, s * 0.12);
     g.fillRoundedRect(s * 0.49, -s * 0.6, s * 0.36, s * 1.2, s * 0.12);
   },
+  nightshift: moonIcon,
   pantry: (g, size, c) => {
     const s = size / 2;
     g.fillStyle(c, 1);

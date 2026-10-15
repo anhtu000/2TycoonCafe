@@ -178,6 +178,9 @@
     "mult": 2
   },
   "handBonus": 1.5,
+  "special": {
+    "mult": 2
+  },
   "daily": [
     {
       "coinsMin": 2
@@ -186,7 +189,7 @@
       "coinsMin": 4
     },
     {
-      "ticket": 1
+      "rarePal": 1
     },
     {
       "coinsMin": 6
@@ -199,7 +202,7 @@
     },
     {
       "coinsMin": 12,
-      "ticket": 1
+      "animal": "snowfox"
     }
   ],
   "rewarded": {

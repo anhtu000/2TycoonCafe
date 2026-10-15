@@ -311,3 +311,133 @@ test('floor task: progress is coins saved toward the price, done when the floor 
   for (let k = 0; k <= i; k++) cafe.openFloor(k);
   assert.ok(cafe.taskDone(t));
 });
+
+/** A five-star main cafe (every floor and item open). */
+function finished(seed = 7) {
+  const cafe = fresh(seed);
+  cafe.s.coins = 1e15;
+  cafe.s.served = 20;
+  for (let i = 0; i < 3; i++) cafe.openFloor(i);
+  for (const id of ['capybara', 'cat', 'shiba', 'koala']) cafe.adopt(false, id);
+  cafe.unlockItem('tea');
+  cafe.unlockItem('cake');
+  cafe.unlockItem('bubbletea');
+  while (cafe.s.items.bubbletea.level < 25) cafe.buyItemLevel('bubbletea');
+  cafe.step(0.1);
+  assert.notEqual(cafe.s.finishedAt, null);
+  cafe.s.coins = 0;
+  return cafe;
+}
+
+test('daily orders and the special start only in a five-star main cafe, once per day', () => {
+  const early = fresh();
+  assert.equal(early.startDay('2026-11-01'), false);
+  assert.equal(early.orders().length, 0);
+  assert.equal(early.specialItem(), null);
+  const cafe = finished();
+  assert.equal(cafe.startDay('2026-11-01'), true);
+  assert.equal(cafe.startDay('2026-11-01'), false);
+  const orders = cafe.orders();
+  assert.equal(orders.length, content.tasks.orders.perDay);
+  assert.equal(new Set(orders.map((o) => o.type)).size, orders.length);
+  const sp = cafe.specialItem()!;
+  assert.ok(cafe.s.items[sp].unlocked);
+  for (const o of orders) if (o.type === 'special') assert.equal(o.item, sp);
+  // A new day: a different special than yesterday.
+  for (let d = 2; d < 12; d++) {
+    const prev = cafe.specialItem();
+    assert.equal(cafe.startDay(`2026-11-${String(d).padStart(2, '0')}`), true);
+    assert.notEqual(cafe.specialItem(), prev);
+  }
+  // A timed run has none.
+  const timed = new Cafe(content, newRunState(content, 'timed', 3));
+  timed.s.finishedAt = 10;
+  assert.equal(timed.startDay('2026-11-01'), false);
+});
+
+test('the special sells for special.mult times more', () => {
+  const cafe = finished();
+  const before = cafe.itemValue('cake');
+  cafe.startDay('2026-11-01');
+  const sp = cafe.specialItem()!;
+  const other = content.cafe.items.find((i) => i.id !== sp)!.id;
+  cafe.s.day!.special = 'cake';
+  assert.equal(cafe.itemValue('cake'), before * content.cafe.special!.mult);
+  cafe.s.day!.special = other;
+  assert.equal(cafe.itemValue('cake'), before);
+});
+
+test('orders count from the start of the day; the last claim gives the bonus helpers', () => {
+  const cafe = finished();
+  run(cafe, 30);
+  cafe.startDay('2026-11-01');
+  const s = cafe.s;
+  s.day!.orders = [
+    { type: 'served', need: 5 },
+    { type: 'sold', need: 2, item: 'coffee' },
+    { type: 'buys', need: 1 },
+  ];
+  assert.equal(cafe.orderProgress(s.day!.orders[0]).have, 0);
+  assert.equal(cafe.claimOrder(0), null);
+  s.served += 5;
+  (s.sold ??= {}).coffee = (s.sold.coffee ?? 0) + 2;
+  s.rate = 1000;
+  const first = cafe.claimOrder(0)!;
+  assert.equal(first.coins, Math.max(content.tasks.orders.rewardMin, 1000 * content.tasks.orders.rewardSec));
+  assert.equal(first.bonus, 0);
+  assert.equal(cafe.claimOrder(0), null, 'claimed once');
+  assert.equal(cafe.claimOrder(1)!.bonus, 0);
+  s.coins = 1e15;
+  cafe.buyUpgrade('smile');
+  assert.equal(cafe.claimOrder(2)!.bonus, content.tasks.orders.bonusTickets);
+});
+
+test('serving counts hand serves, servings per item and sales', () => {
+  const cafe = finished();
+  const c = { id: 999, floor: 0, seat: 0, item: 'coffee', phase: 'wait' as const, t: 0, patience: 20, maxPatience: 20, look: 0 };
+  cafe.s.customers.push(c);
+  cafe.s.items.coffee.ready = 1;
+  const hand0 = cafe.s.hand ?? 0;
+  const sold0 = cafe.s.sold?.coffee ?? 0;
+  const sales0 = cafe.s.sales ?? 0;
+  assert.equal(cafe.tapCustomer(999), 'served');
+  assert.equal(cafe.s.hand, hand0 + 1);
+  assert.equal(cafe.s.sold!.coffee, sold0 + 1);
+  assert.ok(cafe.s.sales! > sales0);
+});
+
+test('the Snow Fox never comes from adoption; the gifts give it and a Rare pal', () => {
+  const cafe = fresh(11);
+  cafe.s.coins = 1e15;
+  cafe.openFloor(1);
+  cafe.openFloor(2);
+  for (let i = 0; i < 400; i++) {
+    const r = cafe.adopt(false)!;
+    assert.notEqual(r.animal.id, 'snowfox');
+  }
+  const pal = fresh(5);
+  const r = pal.giftRarePal();
+  assert.equal(r.animal.rarity, 'rare');
+  assert.ok(r.isNew);
+  // Every Rare owned: an Epic not owned yet.
+  for (const a of content.staff.animals.filter((x) => x.rarity === 'rare')) pal.giftAnimal(a.id);
+  assert.equal(pal.giftRarePal().animal.rarity, 'epic');
+  const fox = pal.giftAnimal('snowfox');
+  assert.ok(fox.isNew);
+  assert.equal(pal.giftAnimal('snowfox').level, 2);
+  // Day 3 and day 7 of the gift.
+  assert.equal(content.cafe.daily[2].rarePal, 1);
+  assert.equal(content.cafe.daily[6].animal, 'snowfox');
+});
+
+test('Night Shift shows at five stars and adds offline hours', () => {
+  const early = fresh();
+  const night = content.upgrades.find((u) => u.id === 'nightshift')!;
+  assert.equal(early.upgradeVisible(night), false);
+  const cafe = finished();
+  assert.equal(cafe.upgradeVisible(night), true);
+  const h0 = cafe.stat('offlineHours');
+  cafe.s.coins = 1e15;
+  assert.ok(cafe.buyUpgrade('nightshift'));
+  assert.equal(cafe.stat('offlineHours'), h0 + night.value);
+});

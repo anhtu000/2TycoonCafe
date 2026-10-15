@@ -83,6 +83,18 @@
       "show": {
         "floor": "bakery"
       }
+    },
+    {
+      "id": "nightshift",
+      "stat": "offlineHours",
+      "op": "add",
+      "value": 2,
+      "max": 2,
+      "cost": 20000000000,
+      "growth": 8,
+      "show": {
+        "stars": 5
+      }
     }
   ]
 }

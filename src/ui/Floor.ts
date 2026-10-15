@@ -38,6 +38,8 @@ interface StationView {
   carry: Phaser.GameObjects.Image;
   lock: Button | null;
   bobPhase: number;
+  /** "x2" star over the machine of today's special. */
+  special: Phaser.GameObjects.Container;
 }
 
 const RING_OK = 0x5fbf6a;
@@ -141,6 +143,15 @@ export class Floor {
     this.bubbleLayer.add(carry);
     this.machineLayer.add(zone);
     const def = this.cafe.item(item);
+    // Today's special: a gold star with the multiplier, on the machine's top left corner.
+    const star = s.add.image(0, 0, '__DEFAULT');
+    setShape(star, 'special-star|46', 46, 46, (g) => starIcon(g, 46, 0xffd34d));
+    const mult = this.cafe.content.cafe.special?.mult ?? 2;
+    const x2 = s.add
+      .text(0, 3, `x${mult}`, { fontFamily: app.theme.font, fontStyle: '900', fontSize: 17, color: '#5a3200', resolution: app.textResolution })
+      .setOrigin(0.5);
+    const special = s.add.container(0, 0, [star, x2]).setVisible(false);
+    this.bubbleLayer.add(special);
     let lock: Button | null = null;
     if (def.unlockCost > 0) {
       lock = new Button(s, 0, 0, {
@@ -153,7 +164,7 @@ export class Floor {
       });
       this.frontLayer.add(lock);
     }
-    this.stations.push({ item, machine, zone, staff, staffId: '', servings, carry, lock, bobPhase: Math.random() * 6 });
+    this.stations.push({ item, machine, zone, staff, staffId: '', servings, carry, lock, bobPhase: Math.random() * 6, special });
   }
 
   /** Places the floor: top-left (x, y), size w x h design units. */
@@ -185,6 +196,7 @@ export class Floor {
       st.servings.forEach((img, i) => img.setPosition(mx - 54 * k + i * 26 * k, L.counterY + 2).setDisplaySize(42 * k, 42 * k));
       st.carry.setDisplaySize(40 * k, 40 * k);
       st.lock?.setPosition(mx - 10, L.backY - 10);
+      st.special.setScale(Math.min(1.25, k));
     });
     // Floor name on the chalk menu board above the counter.
     this.board.setPosition((L.counterX + w) / 2, 19 * L.u).setFontSize(Math.round(19 * Math.min(1.3, L.u)));
@@ -307,6 +319,7 @@ export class Floor {
 
     // Stations.
     this.progress.clear();
+    const special = this.cafe.specialItem();
     for (const st of this.stations) {
       const state = s.items[st.item];
       const unlocked = state.unlocked && open;
@@ -339,6 +352,14 @@ export class Floor {
       }
       // Servings on the counter.
       st.servings.forEach((img, i) => img.setVisible(unlocked && state.ready > i));
+      // Today's special badge, bobbing gently.
+      const isSpecial = special === st.item && unlocked;
+      st.special.setVisible(isSpecial);
+      if (isSpecial) {
+        const top = st.machine.y - st.machine.displayHeight;
+        // Top-left corner: the floor's name board sits above and to the right of the machines.
+        st.special.setPosition(st.machine.x - st.machine.displayWidth * 0.5, top + 12 * k + Math.sin(this.time * 3 + st.bobPhase) * 3 * k);
+      }
       // Making progress bar over the machine.
       if (state.job !== null && unlocked) {
         const p = Phaser.Math.Clamp(state.job / this.cafe.makeTime(st.item), 0, 1);

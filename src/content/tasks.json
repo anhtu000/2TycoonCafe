@@ -396,5 +396,69 @@
       "type": "staff",
       "n": 10
     }
-  ]
+  ],
+  "orders": {
+    "perDay": 3,
+    "rewardSec": 90,
+    "rewardMin": 1000,
+    "bonusTickets": 1,
+    "pool": [
+      {
+        "type": "served",
+        "n": [
+          800,
+          1000,
+          1200
+        ]
+      },
+      {
+        "type": "hand",
+        "n": [
+          150,
+          200,
+          250
+        ]
+      },
+      {
+        "type": "vips",
+        "n": [
+          6,
+          8,
+          10
+        ]
+      },
+      {
+        "type": "sold",
+        "n": [
+          120,
+          160,
+          200
+        ]
+      },
+      {
+        "type": "special",
+        "n": [
+          120,
+          160,
+          200
+        ]
+      },
+      {
+        "type": "buys",
+        "n": [
+          6,
+          8,
+          10
+        ]
+      },
+      {
+        "type": "sales",
+        "min": [
+          8,
+          10,
+          12
+        ]
+      }
+    ]
+  }
 }

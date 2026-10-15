@@ -23,7 +23,8 @@
     "koala": "Koala",
     "redpanda": "Red Panda",
     "panda": "Panda",
-    "axolotl": "Axolotl"
+    "axolotl": "Axolotl",
+    "snowfox": "Snow Fox"
   },
   "rarity": {
     "common": "Common",
@@ -64,6 +65,10 @@
     "pantry": {
       "name": "Big Pantry",
       "desc": "Earn longer while you are away"
+    },
+    "nightshift": {
+      "name": "Night Shift",
+      "desc": "Helpers work 2 more hours while you're away"
     }
   },
   "shop": {
@@ -77,7 +82,8 @@
     "adoptDup": "Find rarer helpers",
     "seat": "Extra Seat",
     "seatDesc": "{floor}: one more customer",
-    "capped": "More levels after the {floor}"
+    "capped": "More levels after the {floor}",
+    "special": "Today's special: x{n} coins"
   },
   "boost": {
     "rush": "Rush Hour",
@@ -122,7 +128,8 @@
     "worksAt": "Works at: {item}",
     "resting": "Resting (all stations full)",
     "odds": "{r} · 1 in {n}",
-    "ok": "Nice!"
+    "ok": "Nice!",
+    "gift": "{r} · 7-day gift"
   },
   "book": {
     "title": "Staff",
@@ -130,7 +137,8 @@
     "pityEpic": "Epic or better within {n}",
     "pityLegend": "Legendary within {n}",
     "unknown": "???",
-    "level": "Lv {n}"
+    "level": "Lv {n}",
+    "daily7": "Day 7 gift"
   },
   "star": {
     "got": "New star!",
@@ -148,7 +156,7 @@
     "timed": "Timed run",
     "again": "Play again",
     "back": "Back to my cafe",
-    "firstNote": "Now try a timed run, or collect every helper!"
+    "firstNote": "Come back every day: 3 new orders and a special!"
   },
   "menu": {
     "title": "Menu",
@@ -183,7 +191,8 @@
   },
   "daily": {
     "coins": "{n} min",
-    "ticket": "Helper"
+    "ticket": "Helper",
+    "rarePal": "Rare pal"
   },
   "records": {
     "title": "Records",
@@ -196,7 +205,11 @@
     "floorOpen": "{floor} is open!",
     "itemNew": "{item} is on the menu!",
     "away": "Your helpers earned {n} while you were away",
-    "milestone": "{item} x{n} at Lv {l}!"
+    "milestone": "{item} x{n} at Lv {l}!",
+    "newDay": "New orders! Today's special: {item} x{n}",
+    "ordersDone": "All orders done! Free helper in the shop",
+    "gift": "{name} joined the cafe!",
+    "giftLevel": "{name} Lv {n}!"
   },
   "task": {
     "claim": "Claim",
@@ -214,5 +227,15 @@
     "decor": "Own {n} decorations",
     "earned": "Earn {n} coins",
     "floor": "Open the {floor}"
+  },
+  "order": {
+    "served": "Today: serve {n} customers",
+    "hand": "Today: serve {n} by hand",
+    "vips": "Today: serve {n} VIPs",
+    "sold": "Today: sell {n} {item}",
+    "special": "Today: sell {n} {item}",
+    "buys": "Today: buy {n} upgrades",
+    "sales": "Today: earn {n}",
+    "tomorrow": "New orders tomorrow"
   }
 }

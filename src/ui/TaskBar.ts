@@ -1,9 +1,13 @@
 import Phaser from 'phaser';
 import { app, formatNumber, punch, setShape } from '@core';
-import { COIN_COLOR, coinIcon, taskIcon } from '../render/icons';
+import { calendarIcon, COIN_COLOR, coinIcon, taskIcon } from '../render/icons';
 
-/** What the bar shows: the current short task (CLAUDE.md 5a), or nothing. */
+/**
+ * What the bar shows (CLAUDE.md 5a): a short task of the chain, a daily order (main cafe after five stars),
+ * or a line of information with no reward ("New orders tomorrow").
+ */
 export interface TaskView {
+  kind?: 'task' | 'order' | 'info';
   /** Task line, for example "Coffee to Lv 25". */
   text: string;
   have: number;
@@ -100,7 +104,9 @@ export class TaskBar {
     if (!v) return;
     const { w, h } = this;
     const done = v.done;
-    const look = `${w}|${h}|${done}`;
+    const kind = v.kind ?? 'task';
+    const info = kind === 'info';
+    const look = `${w}|${h}|${done}|${kind}`;
     if (look !== this.look) {
       this.look = look;
       const fill = done ? 0x6a4a1a : 0x4a3228;
@@ -116,7 +122,10 @@ export class TaskBar {
         g.strokeRoundedRect(-w / 2 - 4, -h / 2 - 4, w + 8, h + 8, h / 2 + 4);
       }, 10);
       const is = Math.round(Math.min(h * 0.62, 40));
-      setShape(this.icon, `taskicon|${is}|${done}`, is, is, (g) => taskIcon(g, is, done ? 0xffd166 : 0xe3cbb8));
+      // Daily orders carry a calendar; the information line is dimmed.
+      const draw = kind === 'task' ? taskIcon : calendarIcon;
+      const tint = done ? 0xffd166 : kind === 'order' ? 0xffe3a3 : info ? 0xb59a88 : 0xe3cbb8;
+      setShape(this.icon, `taskicon|${is}|${done}|${kind}`, is, is, (g) => draw(g, is, tint));
       this.icon.setPosition(-w / 2 + 14 + is / 2, 0);
       this.label.setPosition(-w / 2 + 28 + is, 0);
       this.text = '';
@@ -124,8 +133,25 @@ export class TaskBar {
     // Wide bar (phone top bar): one row, the reward on the right.
     // Narrow bar (desktop shop column): two rows, task and count on top, progress and reward below,
     // so the task line keeps a readable size.
-    const twoRows = w < h * 7;
+    const twoRows = w < h * 7 && !info;
     const pad = h * 0.36;
+    if (info) {
+      // One centred-left line, no reward, no progress.
+      const text = `info|${v.text}`;
+      if (text === this.text) return;
+      this.text = text;
+      this.coin.setVisible(false);
+      this.reward.setVisible(false);
+      this.count.setVisible(false);
+      this.bar.clear();
+      this.label.setText(v.text).setScale(1).setY(0).setColor('#c9b2a2');
+      const room = w / 2 - pad - this.label.x;
+      if (this.label.width > room) this.label.setScale(Math.max(0.55, room / this.label.width));
+      return;
+    }
+    this.coin.setVisible(true);
+    this.reward.setVisible(true);
+    this.label.setColor('#fff3e0');
     const rowY = twoRows ? -h * 0.2 : -h * 0.13;
     const lowY = twoRows ? h * 0.22 : 0;
     // Reward: "+1.2K" with a coin, or "Claim +1.2K" when done.

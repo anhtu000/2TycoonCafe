@@ -3,6 +3,7 @@ import {
   app,
   BaseScene,
   burst,
+  dayKey,
   Button,
   FixedStep,
   floatText,
@@ -22,7 +23,7 @@ import {
 } from '@core';
 import { content, decorContent } from '../game/content';
 import { AD_TIMERS, boostCooldown, breakAd, dailyClaimable, mainCafe, noteAnimal, openDaily, takeDailyOffer } from '../game/meta';
-import { Cafe, newRunState, type AdoptResult, type CafeEvent } from '../logic/cafe.ts';
+import { Cafe, newRunState, type AdoptResult, type CafeEvent, type OrderState } from '../logic/cafe.ts';
 import { decorTipMult } from '../logic/decor.ts';
 import { boltIcon, bookIcon, coinIcon, COIN_COLOR, menuIcon, pawIcon, plantIcon, seatIcon, starIcon, starSlotIcon, stopwatchIcon, trophyIcon, UPGRADE_ICONS } from '../render/icons';
 import { animalTexture, itemTexture } from '../render/textures';
@@ -72,6 +73,14 @@ export class PlayScene extends BaseScene {
   private goalLook = '';
   /** Panels and reveals waiting their turn (one at a time). */
   private queue: (() => Panel | null)[] = [];
+  /** Milliseconds until the next check for a new day (daily orders, today's special). */
+  private dayTimer = 0;
+  /** News of a new day, shown once no window is open. */
+  private dayNews: string | null = null;
+  /** What the task bar showed last refresh, to bounce it when something becomes claimable. */
+  private barKey = '';
+  /** The five-star moment is on screen: news of the first day waits for it. */
+  private finishing = false;
 
   constructor() {
     // gameplayStart goes out at the first tap, not when loading ends (Poki guide 5.1).
@@ -157,6 +166,10 @@ export class PlayScene extends BaseScene {
 
     // Test hook for the playtest bot (web build only).
     if (__TARGET__ === 'web') (window as unknown as { __play?: PlayScene }).__play = this;
+    this.dayNews = null;
+    this.barKey = '';
+    this.finishing = false;
+    this.newDay();
     this.refreshStars(true);
     this.refreshHud();
     this.welcome();
@@ -239,6 +252,12 @@ export class PlayScene extends BaseScene {
     // The cafe waits while a window is open: customers should not walk out while the player reads.
     if (!this.panel) this.tick.update(delta);
     for (const f of this.floors) f.sync(this.panel ? 0 : delta);
+    // Midnight while playing: new orders and a new special without a reload.
+    this.dayTimer -= delta;
+    if (this.dayTimer <= 0) {
+      this.dayTimer = 5000;
+      this.newDay();
+    }
     this.hudTimer -= delta;
     if (this.hudTimer <= 0) {
       this.hudTimer = 120;
@@ -298,7 +317,7 @@ export class PlayScene extends BaseScene {
           this.onStar(e.stars);
           break;
         case 'taskDone':
-          if (this.taskView()) this.taskBar.ping();
+          // The bar bounces from refreshHud, for chain tasks and daily orders alike.
           break;
         case 'milestone': {
           // x2 at Lv 10, 25, 50...: a small celebration on the machine (Poki guide 8: celebrate milestones).
@@ -404,6 +423,8 @@ export class PlayScene extends BaseScene {
         name: app.t(`item.${item.id}`),
         desc: capped
           ? app.t('shop.capped', { floor: app.t(`floor.${lastFloor}`) })
+          : cafe.specialItem() === item.id
+            ? app.t('shop.special', { n: content.cafe.special!.mult })
           : next && next.value
             ? app.t('shop.itemNext', { n: next.value, l: next.level })
             : app.t('shop.itemDesc'),
@@ -557,6 +578,9 @@ export class PlayScene extends BaseScene {
 
   private onFinish() {
     const cafe = this.cafe;
+    // Five stars in the main cafe: daily orders and today's special start now (their news after the finish screen).
+    this.finishing = true;
+    this.newDay();
     const ms = Math.round((cafe.s.finishedAt ?? cafe.s.time) * 1000);
     app.moments.emit('finish', { runMs: ms });
     let rank: number | null = null;
@@ -580,7 +604,10 @@ export class PlayScene extends BaseScene {
           ms,
           rank,
           first,
-          onKeep: () => this.panelClosed(),
+          onKeep: () => {
+            this.finishing = false;
+            this.panelClosed();
+          },
           onTimed: () => this.startTimed(),
           onBack: () => this.leaveTimed(),
         }),
@@ -643,7 +670,12 @@ export class PlayScene extends BaseScene {
     if (s.rushLeft > 0) this.rush.setText(app.t('hud.rush', { t: formatCountdown(s.rushLeft) }));
     this.clock.setVisible(s.mode === 'timed');
     if (s.mode === 'timed') this.clock.setText(formatClock(s.finishedAt ?? s.time));
-    this.taskBar.show(this.taskView());
+    const view = this.taskView();
+    this.taskBar.show(view);
+    // Something just became claimable: a little bounce.
+    const key = view ? `${view.kind ?? 'task'}|${view.text}|${view.done}` : '';
+    if (view?.done && key !== this.barKey) this.taskBar.ping();
+    this.barKey = key;
   }
 
   // ---------- short tasks ----------
@@ -652,10 +684,63 @@ export class PlayScene extends BaseScene {
   private taskView(): TaskView | null {
     const cafe = this.cafe;
     if (cafe.s.mode === 'main' && !this.done('serve')) return null;
-    const t = cafe.task();
-    if (!t) return null;
+    const pick = this.barPick();
+    if (!pick) return null;
+    if (pick.kind === 'info') return { kind: 'info', text: app.t('order.tomorrow'), have: 0, need: 1, reward: 0, done: false };
+    if (pick.kind === 'order') {
+      const o = cafe.orders()[pick.index];
+      const p = cafe.orderProgress(o);
+      return { kind: 'order', text: this.orderText(o), have: p.have, need: p.need, reward: cafe.orderReward(), done: p.have >= p.need };
+    }
+    const t = pick.task;
     const p = cafe.taskProgress(t);
-    return { text: this.taskText(t), have: p.have, need: p.need, reward: cafe.taskReward(t), done: p.have >= p.need };
+    return { kind: 'task', text: this.taskText(t), have: p.have, need: p.need, reward: cafe.taskReward(t), done: p.have >= p.need };
+  }
+
+  /**
+   * What the bar shows. Before five stars: the task chain. After: anything ready to claim first,
+   * then today's orders, then the rest of the chain; with nothing left, "New orders tomorrow".
+   */
+  private barPick(): { kind: 'task'; task: TaskDef } | { kind: 'order'; index: number } | { kind: 'info' } | null {
+    const cafe = this.cafe;
+    const t = cafe.task();
+    const orders = cafe.orders();
+    if (!orders.length) return t ? { kind: 'task', task: t } : null;
+    const open = orders.map((o, index) => ({ o, index })).filter((x) => !x.o.claimed);
+    const ready = open.find((x) => cafe.orderDone(x.o));
+    if (ready) return { kind: 'order', index: ready.index };
+    if (t && cafe.taskDone(t)) return { kind: 'task', task: t };
+    if (open.length) return { kind: 'order', index: open[0].index };
+    if (t) return { kind: 'task', task: t };
+    return { kind: 'info' };
+  }
+
+  private orderText(o: OrderState): string {
+    return app.t(`order.${o.type}`, { n: formatNumber(o.need), item: o.item ? app.t(`item.${o.item}`) : '' });
+  }
+
+  /** A new day (the player's own date) in a five-star cafe: new orders and a new special. */
+  private newDay() {
+    const cafe = this.cafe;
+    if (!cafe.startDay(dayKey())) return;
+    save.flush();
+    const sp = cafe.specialItem();
+    this.dayNews = sp ? app.t('toast.newDay', { item: app.t(`item.${sp}`), n: content.cafe.special!.mult }) : null;
+    this.shop.refresh(true);
+  }
+
+  /** Coins from a task or an order: numbers fly from the bar. */
+  private celebrateClaim(coins: number) {
+    const c = this.taskBar.center;
+    floatText(this, c.x, c.y - 30, `+${formatNumber(coins)}`, { color: '#ffd34d', size: 40 });
+    burst(this, c.x, c.y, 0xffd34d, 22, 460);
+    app.audio.play('reward');
+    app.haptic(15);
+    punch(this, this.coins, 0.15);
+    save.flush();
+    this.refreshHud();
+    this.taskBar.enter();
+    this.shop.refresh(true);
   }
 
   private taskText(t: TaskDef): string {
@@ -690,20 +775,33 @@ export class PlayScene extends BaseScene {
   private tapTask() {
     if (this.panel || this.tut.active) return;
     const cafe = this.cafe;
-    const t = cafe.task();
-    if (!t) return;
+    const pick = this.barPick();
+    if (!pick) return;
+    if (pick.kind === 'info') {
+      this.taskBar.shake();
+      return;
+    }
+    if (pick.kind === 'order') {
+      const o = cafe.orders()[pick.index];
+      const r = cafe.claimOrder(pick.index);
+      if (r) {
+        if (r.bonus > 0) {
+          // Every order of the day: free adoptions, waiting on the shop's adoption card.
+          save.data.tickets += r.bonus;
+          toast(this, app.t('toast.ordersDone'), 3200);
+        }
+        this.celebrateClaim(r.coins);
+        return;
+      }
+      // Not done: show the machine of the item to sell; other orders are about playing as usual.
+      const top = o.item ? this.floors[cafe.floorIndexOf(o.item)].machineTop(o.item) : null;
+      if (top) burst(this, top.x, top.y + 20, 0xffd34d, 14, 300);
+      else this.taskBar.shake();
+      return;
+    }
+    const t = pick.task;
     if (cafe.taskDone(t)) {
-      const coins = cafe.claimTask();
-      const c = this.taskBar.center;
-      floatText(this, c.x, c.y - 30, `+${formatNumber(coins)}`, { color: '#ffd34d', size: 40 });
-      burst(this, c.x, c.y, 0xffd34d, 22, 460);
-      app.audio.play('reward');
-      app.haptic(15);
-      punch(this, this.coins, 0.15);
-      save.flush();
-      this.refreshHud();
-      this.taskBar.enter();
-      this.shop.refresh(true);
+      this.celebrateClaim(cafe.claimTask());
       return;
     }
     let pointed = false;
@@ -785,7 +883,7 @@ export class PlayScene extends BaseScene {
               icon: plantIcon,
               onClick: () => this.showPanel(() => showDecor(this, this.cafe, () => this.applyDecor(), () => this.panelClosed())),
             },
-            { label: app.t('menu.daily'), icon: icons.giftIcon, badge: dailyClaimable(), onClick: () => this.showPanel(() => openDaily(this, this.cafe, () => this.refreshHud(), () => this.panelClosed())) },
+            { label: app.t('menu.daily'), icon: icons.giftIcon, badge: dailyClaimable(), onClick: () => this.openDailyPanel() },
           ]),
       ...(save.data.firstFinishMs > 0 && !timed ? [{ label: app.t('menu.timed'), icon: stopwatchIcon, onClick: () => this.startTimed() }] : []),
       ...(save.data.records.length ? [{ label: app.t('menu.records'), icon: trophyIcon, onClick: () => this.showPanel(() => showRecords(this, null, () => this.panelClosed())) }] : []),
@@ -844,7 +942,8 @@ export class PlayScene extends BaseScene {
   private welcome() {
     const cafe = this.cafe;
     if (cafe.s.mode !== 'main') return;
-    let away = secondsAway(save.lastSavedAt);
+    // Up to a day: the cafe's own cap (offline hours with Pantry and Night Shift) applies below.
+    let away = secondsAway(save.lastSavedAt, Date.now(), 24 * 3600);
     if (save.data.mainLeftAt > 0) {
       away = Math.max(away, (Date.now() - save.data.mainLeftAt) / 1000);
       save.data.mainLeftAt = 0;
@@ -867,7 +966,23 @@ export class PlayScene extends BaseScene {
       );
     }
     // Not during the first-time tutorial: the first minute is for serving (CLAUDE.md 4.2).
-    if (this.done('upgrade') && takeDailyOffer()) this.showPanel(() => openDaily(this, cafe, () => this.refreshHud(), () => this.panelClosed()));
+    if (this.done('upgrade') && takeDailyOffer()) this.openDailyPanel();
+  }
+
+  /** The 7-day gift; animals it brings (day 3, day 7) are shown one by one after it closes. */
+  private openDailyPanel() {
+    this.showPanel(() =>
+      openDaily(
+        this,
+        this.cafe,
+        () => this.refreshHud(),
+        () => this.panelClosed(),
+        (gifts) => {
+          for (const g of gifts) this.showPanel(() => showAdoptReveal(this, this.cafe, g, () => this.panelClosed()));
+          this.shop.refresh(true);
+        },
+      ),
+    );
   }
 
   // ---------- tutorial ----------
@@ -912,6 +1027,11 @@ export class PlayScene extends BaseScene {
   /** Steps that appear when something new shows up (CLAUDE.md 4.2). */
   private checkTriggers() {
     if (this.panel || this.tut.active || this.cafe.s.mode !== 'main' || !this.done('serve')) return;
+    // Not between two queued windows either (the toast would sit on the next one's button).
+    if (this.dayNews && !this.finishing && this.queue.length === 0) {
+      toast(this, this.dayNews, 3600);
+      this.dayNews = null;
+    }
     const cafe = this.cafe;
     const s = cafe.s;
     if (!this.done('upgrade') && s.coins >= cafe.itemLevelCost('coffee')) {

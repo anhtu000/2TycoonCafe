@@ -102,6 +102,13 @@
       "rarity": "legendary",
       "perk": "tips",
       "perkValue": 1.3
+    },
+    {
+      "id": "snowfox",
+      "rarity": "legendary",
+      "perk": "speed",
+      "perkValue": 1.25,
+      "exclusive": "daily"
     }
   ]
 }
