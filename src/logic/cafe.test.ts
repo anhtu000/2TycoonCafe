@@ -7,7 +7,7 @@ import { Cafe, newRunState } from './cafe.ts';
 import { checkDecor, decorTipMult } from './decor.ts';
 
 const read = (p: string) => JSON.parse(readFileSync(new URL(`../content/${p}`, import.meta.url), 'utf8'));
-const content = checkContent({ cafe: read('cafe.json'), staff: read('staff.json'), upgrades: read('upgrades.json') });
+const content = checkContent({ cafe: read('cafe.json'), staff: read('staff.json'), upgrades: read('upgrades.json'), tasks: read('tasks.json') });
 
 function fresh(seed = 7) {
   return new Cafe(content, newRunState(content, 'main', seed));
@@ -171,4 +171,143 @@ test('item prices and seat prices grow, milestones raise value', () => {
   const seat = cafe.seatCost(0)!;
   assert.ok(cafe.buySeat(0));
   assert.ok(cafe.seatCost(0)! > seat);
+});
+
+test('stars reached by a purchase are celebrated on the next step', () => {
+  const cafe = fresh();
+  cafe.s.coins = 1e12;
+  cafe.s.served = 20;
+  cafe.step(0.1);
+  assert.equal(cafe.stars(), 1);
+  cafe.openFloor(1);
+  const events = cafe.step(0.1);
+  assert.ok(events.some((e) => e.type === 'star' && e.stars === 2), 'opening the bakery gives star 2 with its event');
+  for (const id of ['capybara', 'cat', 'shiba', 'koala']) cafe.adopt(false, id);
+  assert.ok(cafe.step(0.1).some((e) => e.type === 'star' && e.stars === 3), 'the fourth helper gives star 3 with its event');
+});
+
+test('milestone levels send an event', () => {
+  const cafe = fresh();
+  cafe.s.coins = 1e12;
+  while (cafe.s.items.coffee.level < 9) cafe.buyItemLevel('coffee');
+  assert.equal(cafe.step(0.1).filter((e) => e.type === 'milestone').length, 0);
+  cafe.buyItemLevel('coffee');
+  const m = cafe.step(0.1).find((e) => e.type === 'milestone');
+  assert.ok(m && m.type === 'milestone' && m.item === 'coffee' && m.level === 10 && m.mult === 2);
+});
+
+test('tasks: claim pays coins and moves on; a done task among the next three comes first', () => {
+  const cafe = fresh();
+  const list = content.tasks.tasks;
+  const first = cafe.task()!;
+  assert.equal(first.id, list[0].id);
+  assert.equal(cafe.claimTask(), 0, 'nothing to claim before the task is done');
+  // Make the second task done but not the first: it is shown first and can be claimed out of order.
+  const second = list[1];
+  assert.ok(!cafe.taskDone(first));
+  cafe.s.coins = 1e6;
+  if (second.type === 'seats') cafe.buySeat(0);
+  else if (second.type === 'unlock') cafe.unlockItem(second.item!);
+  cafe.s.coins = 0;
+  assert.ok(cafe.taskDone(second), `set up for ${second.id}`);
+  assert.equal(cafe.task()!.id, second.id);
+  const before = cafe.s.coins;
+  const paid = cafe.claimTask();
+  assert.ok(paid >= content.tasks.rewardMin);
+  assert.equal(cafe.s.coins - before, paid);
+  assert.equal(cafe.task()!.id, first.id, 'back to the first open task');
+  assert.equal(cafe.tasksClaimed(), 1);
+  // Finish the first: the chain start moves past both.
+  while (!cafe.taskDone(first)) {
+    cafe.s.coins = 1e9;
+    if (first.type === 'itemLevel') cafe.buyItemLevel(first.item!);
+    else break;
+  }
+  cafe.claimTask();
+  assert.equal(cafe.s.task, 2);
+  assert.deepEqual(cafe.s.taskSkip, []);
+});
+
+test('tasks: every task can be done, decor tasks are skipped in a timed run', () => {
+  const timed = new Cafe(content, newRunState(content, 'timed', 3));
+  const decorAt = content.tasks.tasks.findIndex((t) => t.type === 'decor');
+  timed.s.task = decorAt;
+  assert.notEqual(timed.task()!.type, 'decor');
+  // A cafe with everything maxed completes every task.
+  const cafe = fresh();
+  cafe.s.coins = 1e30;
+  cafe.s.served = 1e6;
+  cafe.s.vips = 1e4;
+  cafe.decorCount = 99;
+  content.cafe.floors.forEach((_, i) => {
+    cafe.openFloor(i);
+    while (cafe.buySeat(i));
+  });
+  for (const item of content.cafe.items) {
+    cafe.unlockItem(item.id);
+    while (cafe.buyItemLevel(item.id));
+  }
+  for (const u of content.upgrades) while (cafe.buyUpgrade(u.id));
+  for (const a of content.staff.animals) for (let k = 0; k < content.staff.maxLevel; k++) cafe.adopt(false, a.id);
+  cafe.s.totalEarned = 1e30;
+  for (const t of content.tasks.tasks) assert.ok(cafe.taskDone(t), `task ${t.id} cannot be done`);
+  let n = 0;
+  while (cafe.claimTask() > 0) n++;
+  assert.equal(n, content.tasks.tasks.length);
+  assert.equal(cafe.task(), null);
+});
+
+test('Poki rewards come back after purchases, not after time', () => {
+  const cafe = fresh();
+  const need = content.cafe.rewarded.afterBuys.freeUpgrade ?? 0;
+  assert.ok(cafe.rewardArmed('freeUpgrade'));
+  cafe.useReward('freeUpgrade');
+  if (need > 0) assert.ok(!cafe.rewardArmed('freeUpgrade'));
+  run(cafe, 600);
+  if (need > 0) assert.ok(!cafe.rewardArmed('freeUpgrade'), 'time alone does not bring it back');
+  cafe.s.coins = 1e9;
+  for (let i = 0; i < need; i++) assert.ok(cafe.buyItemLevel('coffee'));
+  assert.ok(cafe.rewardArmed('freeUpgrade'));
+  assert.equal(cafe.buysToArm('freeUpgrade'), 0);
+});
+
+test('free upgrade target: the dearest card not affordable yet, within the window', () => {
+  const cafe = fresh();
+  assert.equal(cafe.freeUpgradeTarget(), null, 'no free upgrade before the first helper');
+  cafe.adopt(false, 'capybara');
+  cafe.s.rate = 10;
+  cafe.s.coins = 0;
+  const id = cafe.freeUpgradeTarget();
+  assert.ok(id && /^(item|up):/.test(id));
+  const before = id!.startsWith('item:') ? cafe.s.items[id!.slice(5)].level : cafe.level(id!.slice(3));
+  assert.ok(cafe.grantFree(id!));
+  const after = id!.startsWith('item:') ? cafe.s.items[id!.slice(5)].level : cafe.level(id!.slice(3));
+  assert.equal(after, before + 1);
+});
+
+test('item levels stop at the cap until the last floor opens', () => {
+  const cafe = fresh();
+  const cap = content.cafe.levelCapBeforeLastFloor!;
+  cafe.s.coins = 1e30;
+  while (cafe.buyItemLevel('coffee'));
+  assert.equal(cafe.s.items.coffee.level, cap);
+  assert.ok(cafe.levelCapped('coffee'));
+  assert.equal(cafe.freeUpgradeTarget()?.startsWith('item:coffee') ?? false, false, 'no free level past the cap');
+  content.cafe.floors.forEach((_, i) => cafe.openFloor(i));
+  assert.ok(!cafe.levelCapped('coffee'));
+  assert.ok(cafe.buyItemLevel('coffee'));
+  assert.equal(cafe.s.items.coffee.level, cap + 1);
+});
+
+test('floor task: progress is coins saved toward the price, done when the floor opens', () => {
+  const cafe = fresh();
+  const t = content.tasks.tasks.find((x) => x.type === 'floor')!;
+  const i = content.cafe.floors.findIndex((f) => f.id === t.floor);
+  const price = content.cafe.floors[i].unlockCost;
+  cafe.s.coins = price / 2;
+  assert.deepEqual(cafe.taskProgress(t), { have: Math.floor(price / 2), need: price });
+  cafe.s.coins = price * 3;
+  assert.ok(!cafe.taskDone(t), 'enough coins is not enough: the floor must be opened');
+  for (let k = 0; k <= i; k++) cafe.openFloor(k);
+  assert.ok(cafe.taskDone(t));
 });

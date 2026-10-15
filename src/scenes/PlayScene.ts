@@ -30,11 +30,15 @@ import { save } from '../save';
 import { Floor } from '../ui/Floor';
 import { showAdoptReveal, showDecor, showFinish, showGameMenu, showRecords, showStaffBook } from '../ui/panels';
 import { BOOST_CARD, ShopList, type Boost, type ShopEntry } from '../ui/ShopList';
+import { TaskBar, type TaskView } from '../ui/TaskBar';
+import type { TaskDef } from '../logic/content.ts';
 
 const STEP_MS = 100;
 const TOP_PORTRAIT = 172;
 const TOP_LANDSCAPE = 92;
 const SHOP_COLUMN = 372;
+/** Height of the task bar at the top of the shop column (desktop). */
+const TASK_COLUMN_H = 72;
 
 /**
  * The cafe: three floors stacked like a doll house, the shop strip (phone) or column (desktop),
@@ -58,11 +62,14 @@ export class PlayScene extends BaseScene {
   private rush!: Phaser.GameObjects.Text;
   private clock!: Phaser.GameObjects.Text;
   private menuBtn!: Button;
+  private taskBar!: TaskBar;
   private panel: Panel | null = null;
   private lastStars = 0;
   private hudTimer = 0;
   private shownCoins = -1;
   private goalRect = { x: 0, y: 0, w: 0 };
+  /** Text, orientation and width the goal line was last set for. */
+  private goalLook = '';
   /** Panels and reveals waiting their turn (one at a time). */
   private queue: (() => Panel | null)[] = [];
 
@@ -80,7 +87,10 @@ export class PlayScene extends BaseScene {
     if (save.data.mode === 'timed' && !save.data.timed) save.data.mode = 'main';
     this.cafe = save.data.mode === 'timed' ? new Cafe(content, save.data.timed!) : mainCafe();
     const cafe = this.cafe;
-    if (cafe.s.mode === 'main') cafe.extraTips = decorTipMult(decorContent, save.data.decor);
+    if (cafe.s.mode === 'main') {
+      cafe.extraTips = decorTipMult(decorContent, save.data.decor);
+      cafe.decorCount = save.data.decor.length;
+    }
     // A brand-new player: patience waits for the tutorial.
     if (cafe.s.mode === 'main' && !save.data.tutorial.includes('serve')) cafe.s.calm = true;
     cafe.reassign();
@@ -121,12 +131,15 @@ export class PlayScene extends BaseScene {
     });
     this.menuBtn.setDepth(32);
 
+    this.taskBar = new TaskBar(this, () => this.tapTask());
+
     this.shop = new ShopList(this, {
       entries: () => this.shopEntries(),
       boost: () => this.boost(),
-      freeTarget: () => this.freeTarget(),
+      freeTarget: () => this.cafe.freeUpgradeTarget(),
       onFree: (id) => this.freeUpgrade(id),
-      freeCooldown: () => (AD_TIMERS ? this.cafe.rewardLeft('freeUpgrade') : 0),
+      // Poki: no timer; after one free upgrade the next is offered after a few purchases.
+      freeCooldown: () => (AD_TIMERS ? this.cafe.rewardLeft('freeUpgrade') : this.cafe.rewardArmed('freeUpgrade') ? 0 : 1),
     });
 
     this.tut = new Tutorial(this, {
@@ -154,26 +167,35 @@ export class PlayScene extends BaseScene {
     this.bg.setSize(vp.width, vp.height);
     const s = vp.safe;
     let shopRect: [number, number, number, number, boolean];
+    // Tall phones have room above the 16:9 safe area: the HUD sits at the top edge so the floors get it.
+    const ty = vp.portrait ? Math.min(s.y, 12) : s.y;
     if (vp.portrait) {
       // Phone: bar, three floors, shop strip at the bottom.
-      const top = s.y + TOP_PORTRAIT;
-      const shopH = 196;
+      const top = ty + TOP_PORTRAIT;
+      // Tall phones: bigger floors and a taller shop strip, so nothing is left empty at the bottom.
+      const shopH = Phaser.Math.Clamp(Math.round((vp.height - 1280) * 0.15) + 196, 196, 236);
       const bottom = vp.height - shopH - 22;
       const gap = 8;
-      const fh = Phaser.Math.Clamp((bottom - top - gap * 2) / 3, 190, 310);
+      const fh = Phaser.Math.Clamp((bottom - top - gap * 2) / 3, 190, 400);
       this.floors.forEach((f, i) => f.layout(0, top + i * (fh + gap), vp.width, fh));
       const shopY = top + 3 * fh + 2 * gap + 12;
       shopRect = [0, shopY, vp.width, Math.min(shopH, vp.height - shopY - 10), true];
-      this.drawTopBar(vp.width, s.y + TOP_PORTRAIT - 6);
-      const y1 = s.y + 52;
+      this.drawTopBar(vp.width, ty + TOP_PORTRAIT - 6);
+      const y1 = ty + 52;
       // The Poki button sits top-left on phones: keep that corner empty, menu goes top-right.
       this.menuBtn.setPosition(vp.width - s.x - 54, y1);
       this.coinIcon.setPosition(s.x + 140, y1);
       this.coins.setPosition(s.x + 170, y1 - 4);
       this.rate.setPosition(s.x + 172, y1 + 36);
       this.stars.forEach((st, i) => st.setPosition(vp.width - s.x - 300 + i * 42, y1 - 8));
-      this.goalRect = { x: vp.width / 2, y: s.y + 132, w: vp.width - 80 };
-      this.clock.setPosition(vp.width - s.x - 24, s.y + 132);
+      // The star goal sits under the stars; the second row is the task bar (and the clock in a timed run).
+      this.goalRect = { x: vp.width - s.x - 216, y: y1 + 32, w: 290 };
+      const timed = this.cafe.s.mode === 'timed';
+      this.clock.setPosition(vp.width - s.x - 24, ty + 130);
+      // Poki's button sits top-left on phones (46x62 CSS px from 24 px down): the task bar starts right of it.
+      const pillRight = 54 * (vp.width / vp.cssWidth);
+      const tx = Math.max(s.x + 24, pillRight);
+      this.taskBar.layout(tx, ty + 100, vp.width - s.x - 24 - tx - (timed ? 150 : 0), 58);
     } else {
       // Desktop: floors on the left, shop column on the right.
       const shopW = SHOP_COLUMN;
@@ -182,7 +204,9 @@ export class PlayScene extends BaseScene {
       const gap = 6;
       const fh = (vp.height - top - 10 - gap * 2) / 3;
       this.floors.forEach((f, i) => f.layout(0, top + i * (fh + gap), floorsW, fh));
-      shopRect = [floorsW + 12, 16, vp.width - floorsW - 24, vp.height - 32, false];
+      // The task bar heads the shop column.
+      this.taskBar.layout(floorsW + 12, 16, vp.width - floorsW - 24, TASK_COLUMN_H);
+      shopRect = [floorsW + 12, 16 + TASK_COLUMN_H + 10, vp.width - floorsW - 24, vp.height - 42 - TASK_COLUMN_H, false];
       this.drawTopBar(floorsW, top - 6);
       const y1 = 44;
       // Top-left stays free for the Poki button; the menu sits at the right end of the bar.
@@ -192,7 +216,7 @@ export class PlayScene extends BaseScene {
       this.rate.setPosition(156, y1 + 26);
       const sx = floorsW - 330;
       this.stars.forEach((st, i) => st.setPosition(sx + i * 44, y1 - 14));
-      this.goalRect = { x: floorsW - 240, y: y1 + 24, w: 280 };
+      this.goalRect = { x: floorsW - 240, y: y1 + 18, w: 280 };
       this.clock.setPosition(floorsW / 2 + 110, y1);
     }
     this.shop.layout(...shopRect);
@@ -273,6 +297,20 @@ export class PlayScene extends BaseScene {
         case 'star':
           this.onStar(e.stars);
           break;
+        case 'taskDone':
+          if (this.taskView()) this.taskBar.ping();
+          break;
+        case 'milestone': {
+          // x2 at Lv 10, 25, 50...: a small celebration on the machine (Poki guide 8: celebrate milestones).
+          const top = this.floors[this.cafe.floorIndexOf(e.item)].machineTop(e.item);
+          if (top) {
+            burst(this, top.x, top.y + 20, 0xffd34d, 20, 380);
+            floatText(this, top.x, top.y - 20, `x${e.mult}!`, { color: '#ffd34d', size: 44, rise: 70 });
+          }
+          toast(this, app.t('toast.milestone', { item: app.t(`item.${e.item}`), n: e.mult, l: e.level }));
+          app.audio.play('reward', { volume: 0.7 });
+          break;
+        }
         case 'finish':
           this.onFinish();
           break;
@@ -356,14 +394,21 @@ export class PlayScene extends BaseScene {
       const st = s.items[item.id];
       if (!st.unlocked) continue;
       const maxed = !cafe.canLevelItem(item.id);
+      // Capped until the last floor opens: the card says where more levels come from.
+      const capped = cafe.levelCapped(item.id);
       const cost = maxed ? null : cafe.itemLevelCost(item.id);
       const next = cafe.nextMilestone(st.level);
+      const lastFloor = content.cafe.floors[content.cafe.floors.length - 1].id;
       out.push({
         id: `item:${item.id}`,
         name: app.t(`item.${item.id}`),
-        desc: next && next.value ? app.t('shop.itemNext', { n: next.value, l: next.level }) : app.t('shop.itemDesc'),
+        desc: capped
+          ? app.t('shop.capped', { floor: app.t(`floor.${lastFloor}`) })
+          : next && next.value
+            ? app.t('shop.itemNext', { n: next.value, l: next.level })
+            : app.t('shop.itemDesc'),
         icon: itemTexture(this, item.id),
-        level: maxed ? app.t('shop.max') : app.t('shop.level', { n: st.level }),
+        level: maxed && !capped ? app.t('shop.max') : app.t('shop.level', { n: st.level }),
         cost,
         affordable: cost !== null && s.coins >= cost,
         onBuy: () => {
@@ -417,37 +462,11 @@ export class PlayScene extends BaseScene {
     this.refreshHud();
   }
 
-  /** The dearest card the player cannot afford yet, within a few minutes of income: free for an ad. */
-  private freeTarget(): string | null {
-    const cafe = this.cafe;
-    if (cafe.staffCount() === 0) return null;
-    const window = Math.max(cafe.s.rate, 1) * content.cafe.rewarded.freeUpgradeWindow;
-    let best: string | null = null;
-    let bestCost = 0;
-    for (const item of content.cafe.items) {
-      if (!cafe.s.items[item.id].unlocked || !cafe.canLevelItem(item.id)) continue;
-      const c = cafe.itemLevelCost(item.id);
-      if (c > cafe.s.coins && c <= window && c > bestCost) {
-        best = `item:${item.id}`;
-        bestCost = c;
-      }
-    }
-    for (const u of content.upgrades) {
-      if (!cafe.upgradeVisible(u) || cafe.upgradeMaxed(u.id)) continue;
-      const c = cafe.upgradeCost(u.id);
-      if (c > cafe.s.coins && c <= window && c > bestCost) {
-        best = `up:${u.id}`;
-        bestCost = c;
-      }
-    }
-    return best;
-  }
-
   private freeUpgrade(id: string) {
     const cafe = this.cafe;
-    const ok = id.startsWith('item:') ? cafe.grantItemLevel(id.slice(5)) : cafe.grantUpgrade(id.slice(3));
-    if (!ok) return;
+    if (!cafe.grantFree(id)) return;
     cafe.startCooldown('freeUpgrade', boostCooldown(content.cafe.rewarded.freeUpgradeCooldown));
+    cafe.useReward('freeUpgrade');
     app.audio.play('reward');
     this.bought(id);
   }
@@ -472,6 +491,7 @@ export class PlayScene extends BaseScene {
         if (rushOn) return;
         cafe.startRush();
         cafe.startCooldown('rush', boostCooldown());
+        cafe.useReward('rush');
         app.audio.play('reward');
         this.tut.complete('rush');
       },
@@ -484,12 +504,15 @@ export class PlayScene extends BaseScene {
       wait: 0,
       onReward: () => {
         cafe.startCooldown('freeAdopt', boostCooldown());
+        cafe.useReward('freeAdopt');
         this.adopt('free');
       },
     };
     if (!AD_TIMERS) {
+      // Offers follow the game state (rewarded.afterBuys), never a clock.
       const needHelper = cafe.staffCount() < cafe.slotCount() && cafe.s.coins < cafe.adoptCost() && save.data.tickets === 0;
-      return needHelper && !rushOn ? freeAdopt : rush(0);
+      if (needHelper && !rushOn && cafe.rewardArmed('freeAdopt')) return freeAdopt;
+      return rushOn || cafe.rewardArmed('rush') ? rush(0) : null;
     }
     const rushWait = cafe.rewardLeft('rush');
     const adoptWait = cafe.rewardLeft('freeAdopt');
@@ -593,24 +616,120 @@ export class PlayScene extends BaseScene {
     }
     this.rate.setText(app.t('hud.perSec', { n: formatNumber(Math.round(s.rate)) }));
     const stars = this.cafe.stars();
-    this.goal.setText(this.goalText(stars));
     const { x, y, w } = this.goalRect;
     const vp = this.vp;
-    this.goal.setPosition(x, vp.portrait ? y - 14 : y);
     this.goalBar.clear();
-    if (stars < content.cafe.goals.length) {
-      const p = Phaser.Math.Clamp(this.cafe.goalProgress(stars), 0, 1);
-      const bw = vp.portrait ? Math.min(w, 520) : w;
-      const by = vp.portrait ? y + 14 : y + 18;
+    // Phone: one small line under the stars, with the count when there is one ("Serve 20 customers 12/20").
+    // Desktop: the line and a progress bar under the stars.
+    const g = content.cafe.goals[stars];
+    const counted = !!g && (g.served !== undefined || g.staff !== undefined);
+    const p = Phaser.Math.Clamp(stars < content.cafe.goals.length ? this.cafe.goalProgress(stars) : 1, 0, 1);
+    const n = g?.served ?? g?.staff ?? 0;
+    const goal = this.goalText(stars) + (vp.portrait && counted && p < 1 ? `  ${Math.floor(p * n)}/${n}` : '');
+    const look = `${goal}|${vp.portrait}|${w}`;
+    if (look !== this.goalLook) {
+      this.goalLook = look;
+      this.goal.setText(goal).setFontSize(vp.portrait ? 20 : 24).setScale(1);
+      if (this.goal.width > w) this.goal.setScale(w / this.goal.width);
+    }
+    this.goal.setPosition(x, y);
+    if (!vp.portrait && stars < content.cafe.goals.length) {
       this.goalBar.fillStyle(0xffffff, 0.15);
-      this.goalBar.fillRoundedRect(x - bw / 2, by, bw, 10, 5);
+      this.goalBar.fillRoundedRect(x - w / 2, y + 15, w, 8, 4);
       this.goalBar.fillStyle(0xffd34d, 1);
-      this.goalBar.fillRoundedRect(x - bw / 2, by, Math.max(10, bw * p), 10, 5);
+      this.goalBar.fillRoundedRect(x - w / 2, y + 15, Math.max(8, w * p), 8, 4);
     }
     this.rush.setVisible(s.rushLeft > 0);
     if (s.rushLeft > 0) this.rush.setText(app.t('hud.rush', { t: formatCountdown(s.rushLeft) }));
     this.clock.setVisible(s.mode === 'timed');
     if (s.mode === 'timed') this.clock.setText(formatClock(s.finishedAt ?? s.time));
+    this.taskBar.show(this.taskView());
+  }
+
+  // ---------- short tasks ----------
+
+  /** The task bar shows once the first serve is done (the first minute is for the tutorial). */
+  private taskView(): TaskView | null {
+    const cafe = this.cafe;
+    if (cafe.s.mode === 'main' && !this.done('serve')) return null;
+    const t = cafe.task();
+    if (!t) return null;
+    const p = cafe.taskProgress(t);
+    return { text: this.taskText(t), have: p.have, need: p.need, reward: cafe.taskReward(t), done: p.have >= p.need };
+  }
+
+  private taskText(t: TaskDef): string {
+    const n = t.n ?? 1;
+    switch (t.type) {
+      case 'served':
+        return app.t('task.served', { n: formatNumber(n) });
+      case 'vips':
+        return n === 1 ? app.t('task.vip1') : app.t('task.vips', { n });
+      case 'itemLevel':
+        return app.t('task.itemLevel', { item: app.t(`item.${t.item}`), n });
+      case 'unlock':
+        return app.t('task.unlock', { item: app.t(`item.${t.item}`) });
+      case 'floor':
+        return app.t('task.floor', { floor: app.t(`floor.${t.floor}`) });
+      case 'seats':
+        return app.t('task.seats', { floor: app.t(`floor.${t.floor}`), n });
+      case 'upgrade':
+        return n === 1 ? app.t('task.upgrade1', { name: app.t(`upgrade.${t.upgrade}.name`) }) : app.t('task.upgrade', { name: app.t(`upgrade.${t.upgrade}.name`), n });
+      case 'adopts':
+        return app.t('task.adopts', { n });
+      case 'staff':
+        return app.t('task.staff', { n });
+      case 'decor':
+        return n === 1 ? app.t('task.decor1') : app.t('task.decor', { n });
+      case 'earned':
+        return app.t('task.earned', { n: formatNumber(n) });
+    }
+  }
+
+  /** Done: claim the coins. Not done: point at where to do it. */
+  private tapTask() {
+    if (this.panel || this.tut.active) return;
+    const cafe = this.cafe;
+    const t = cafe.task();
+    if (!t) return;
+    if (cafe.taskDone(t)) {
+      const coins = cafe.claimTask();
+      const c = this.taskBar.center;
+      floatText(this, c.x, c.y - 30, `+${formatNumber(coins)}`, { color: '#ffd34d', size: 40 });
+      burst(this, c.x, c.y, 0xffd34d, 22, 460);
+      app.audio.play('reward');
+      app.haptic(15);
+      punch(this, this.coins, 0.15);
+      save.flush();
+      this.refreshHud();
+      this.taskBar.enter();
+      this.shop.refresh(true);
+      return;
+    }
+    let pointed = false;
+    if (t.type === 'itemLevel') pointed = this.shop.pulse(`item:${t.item}`);
+    else if (t.type === 'upgrade') pointed = this.shop.pulse(`up:${t.upgrade}`);
+    else if (t.type === 'adopts' || t.type === 'staff') pointed = this.shop.pulse('adopt');
+    else if (t.type === 'seats') pointed = this.shop.pulse(`seat:${content.cafe.floors.findIndex((f) => f.id === t.floor)}`);
+    else if (t.type === 'unlock') {
+      const f = this.floors[cafe.floorIndexOf(t.item!)];
+      const r = f.lockRect(t.item!) ?? f.lockRect();
+      if (r) {
+        burst(this, r.x, r.y, 0xffd34d, 14, 300);
+        pointed = true;
+      }
+    } else if (t.type === 'floor') {
+      const i = content.cafe.floors.findIndex((f) => f.id === t.floor);
+      const r = this.floors[i]?.lockRect();
+      if (r) {
+        burst(this, r.x, r.y, 0xffd34d, 14, 300);
+        pointed = true;
+      }
+    } else if (t.type === 'decor' && cafe.s.mode === 'main') {
+      this.showPanel(() => showDecor(this, cafe, () => this.applyDecor(), () => this.panelClosed()));
+      pointed = true;
+    }
+    if (!pointed) this.taskBar.shake();
   }
 
   // ---------- panels ----------
@@ -693,7 +812,10 @@ export class PlayScene extends BaseScene {
       f.decor = decorContent.items.filter((d) => d.floor === f.id && owned.has(d.id)).map((d) => ({ id: d.id, slot: d.slot }));
       f.refreshRoom();
     }
-    if (this.cafe.s.mode === 'main') this.cafe.extraTips = decorTipMult(decorContent, save.data.decor);
+    if (this.cafe.s.mode === 'main') {
+      this.cafe.extraTips = decorTipMult(decorContent, save.data.decor);
+      this.cafe.decorCount = save.data.decor.length;
+    }
   }
 
   /** Set while the scene restarts into another run: nothing may resume play meanwhile. */

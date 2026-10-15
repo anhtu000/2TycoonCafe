@@ -4,10 +4,76 @@
 import { readFileSync } from 'node:fs';
 import { checkContent, type Content } from '../../src/logic/content.ts';
 import { Cafe, newRunState, type CafeEvent, type RewardId } from '../../src/logic/cafe.ts';
+import { checkDecor, decorTipMult, type DecorDef } from '../../src/logic/decor.ts';
 
 export function loadContent(): Content {
   const read = (p: string) => JSON.parse(readFileSync(new URL(`../../src/content/${p}`, import.meta.url), 'utf8'));
-  return checkContent({ cafe: read('cafe.json'), staff: read('staff.json'), upgrades: read('upgrades.json') });
+  return checkContent({ cafe: read('cafe.json'), staff: read('staff.json'), upgrades: read('upgrades.json'), tasks: read('tasks.json') });
+}
+
+export function loadDecor(): DecorDef {
+  return checkDecor(JSON.parse(readFileSync(new URL('../../src/content/decor.json', import.meta.url), 'utf8')));
+}
+
+/**
+ * Short tasks as a player does them: buys the cheapest decoration when the task asks for one,
+ * claims a done task. Returns the coins claimed (0 when nothing was claimed).
+ * `saveFor` is set to the price of a decoration worth saving for (the shop waits for it).
+ */
+export function doTasks(
+  cafe: Cafe,
+  decor: DecorDef,
+  owned: string[],
+): { claimed: number; saveFor: number; id: string | null; bought: string | null; kind: string; cost: number } {
+  const t = cafe.task();
+  let saveFor = 0;
+  let bought: string | null = null;
+  let kind = '';
+  const coins0 = cafe.s.coins;
+  if (t?.type === 'decor' && cafe.decorCount < (t.n ?? 1)) {
+    const next = decor.items.filter((i) => !owned.includes(i.id)).sort((a, b) => a.price - b.price)[0];
+    if (next && cafe.s.coins >= next.price) {
+      cafe.s.coins -= next.price;
+      owned.push(next.id);
+      cafe.decorCount = owned.length;
+      cafe.extraTips = decorTipMult(decor, owned);
+      bought = 'decor';
+      kind = 'decor';
+    } else if (next && next.price <= Math.max(cafe.s.rate, 1) * 30) saveFor = next.price;
+  }
+  // Players follow the task: buy what it asks for when they can, save a little for it otherwise.
+  if (t && !cafe.taskDone(t)) {
+    const s = cafe.s;
+    let cost: number | null = null;
+    let buy: (() => boolean) | null = null;
+    if (t.type === 'upgrade' && !cafe.upgradeMaxed(t.upgrade!)) {
+      const u = cafe.content.upgrades.find((x) => x.id === t.upgrade)!;
+      if (cafe.upgradeVisible(u)) [cost, buy] = [cafe.upgradeCost(t.upgrade!), () => cafe.buyUpgrade(t.upgrade!)];
+    } else if (t.type === 'itemLevel' && s.items[t.item!].unlocked && cafe.canLevelItem(t.item!)) {
+      [cost, buy] = [cafe.itemLevelCost(t.item!), () => cafe.buyItemLevel(t.item!)];
+    } else if (t.type === 'seats') {
+      const i = cafe.content.cafe.floors.findIndex((f) => f.id === t.floor);
+      const c = cafe.seatCost(i);
+      if (s.floors[i].open && c !== null) [cost, buy] = [c, () => cafe.buySeat(i)];
+    } else if (t.type === 'floor') {
+      const i = cafe.content.cafe.floors.findIndex((f) => f.id === t.floor);
+      if (!s.floors[i].open && (i === 0 || s.floors[i - 1].open)) [cost, buy] = [cafe.content.cafe.floors[i].unlockCost, () => cafe.openFloor(i)];
+    } else if (t.type === 'unlock' && s.floors[cafe.floorIndexOf(t.item!)].open) {
+      [cost, buy] = [cafe.item(t.item!).unlockCost, () => cafe.unlockItem(t.item!)];
+    } else if ((t.type === 'adopts' || t.type === 'staff') && (s.served >= 10 || cafe.staffCount() > 0)) {
+      [cost, buy] = [cafe.adoptCost(), () => cafe.adopt(true) !== null];
+    }
+    if (cost !== null && buy) {
+      if (cost <= s.coins) bought = buy() ? `task ${t.id}` : null;
+      if (bought)
+        kind = ({ upgrade: t.upgrade!, itemLevel: 'item level', seats: 'Seat', unlock: 'Menu', floor: 'Open', adopts: 'Adopt', staff: 'Adopt' } as Record<string, string>)[t.type] ?? t.type;
+      else if (cost <= Math.max(s.rate, 1) * 20) saveFor = cost;
+    }
+  }
+  const cost = coins0 - cafe.s.coins;
+  const shown = cafe.task();
+  const claimed = cafe.claimTask();
+  return { claimed, saveFor, id: claimed ? shown!.id : null, bought, kind, cost };
 }
 
 export interface AdPolicy {
@@ -97,6 +163,9 @@ export function simulate(
   const rateAt: Record<string, number> = {};
   const staffAt: Record<string, number> = {};
   let nextShop = 0;
+  const decor = loadDecor();
+  const owned: string[] = [];
+  cafe.decorCount = 0;
 
   const noteBuy = (what: string) => {
     const gap = wall - lastBuy;
@@ -150,7 +219,9 @@ export function simulate(
 
     if (wall >= nextShop) {
       nextShop = wall + 0.5;
-      const bought = shop(cafe, wall);
+      const task = doTasks(cafe, decor, owned);
+      if (task.claimed) once(`Task ${cafe.tasksClaimed()}`);
+      const bought = task.saveFor ? null : shop(cafe, wall);
       if (bought) noteBuy(bought);
       useReward('rush');
       useReward('freeAdopt');
@@ -187,7 +258,7 @@ export function simulate(
 }
 
 /** One hand action, or false when nothing useful is left. */
-function handAction(cafe: Cafe, events: CafeEvent[]): boolean {
+export function handAction(cafe: Cafe, events: CafeEvent[]): boolean {
   const s = cafe.s;
   const waiting = s.customers.filter((c) => c.phase === 'wait' && !c.reserved);
   // 1. Serve someone whose order is ready, VIPs first, then the most impatient.
@@ -219,8 +290,12 @@ function handAction(cafe: Cafe, events: CafeEvent[]): boolean {
   return false;
 }
 
-/** Buys at most one thing. Returns its label, or null. */
-function shop(cafe: Cafe, wall: number): string | null {
+/**
+ * Buys at most one thing. Returns its label, or null.
+ * smart: saves for the next big unlock and picks the best value per coin.
+ * cheap: a first-time player, buys the cheapest lit card (unlocks when affordable).
+ */
+export function shop(cafe: Cafe, wall: number, style: 'smart' | 'cheap' = 'smart'): string | null {
   const s = cafe.s;
   const content = cafe.content;
   const rate = Math.max(s.rate, 1);
@@ -251,7 +326,7 @@ function shop(cafe: Cafe, wall: number): string | null {
   const unlocks = cands.filter((c) => c.prio >= 2).sort((a, b) => a.cost - b.cost);
   const target = unlocks[0];
   if (target && target.cost <= s.coins) return target.buy() ? target.label : null;
-  const reserve = target && target.cost <= rate * save ? target.cost : 0;
+  const reserve = style === 'smart' && target && target.cost <= rate * save ? target.cost : 0;
   const spendable = s.coins - reserve;
 
   // Otherwise the best item level or upgrade per coin.
@@ -268,12 +343,12 @@ function shop(cafe: Cafe, wall: number): string | null {
   for (const u of content.upgrades) {
     if (!cafe.upgradeVisible(u) || cafe.upgradeMaxed(u.id)) continue;
     const cost = cafe.upgradeCost(u.id);
-    if (cost > rate * 40) continue;
+    if (style === 'smart' && cost > rate * 40) continue;
     small.push({ label: `${u.id} L${cafe.level(u.id) + 1}`, cost, prio: 1e9 / cost, buy: () => cafe.buyUpgrade(u.id) });
   }
   if (cafe.staffCount() >= cafe.slotCount() && cafe.adoptCost() < rate * 30)
     small.push({ label: `Adopt extra`, cost: cafe.adoptCost(), prio: 1e9 / cafe.adoptCost(), buy: () => cafe.adopt(true) !== null });
-  const affordable = small.filter((c) => c.cost <= spendable).sort((a, b) => b.prio - a.prio);
+  const affordable = small.filter((c) => c.cost <= spendable).sort((a, b) => (style === 'cheap' ? a.cost - b.cost : b.prio - a.prio));
   if (affordable.length) {
     const c = affordable[0];
     return c.buy() ? c.label : null;

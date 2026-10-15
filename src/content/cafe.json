@@ -3,7 +3,7 @@
     {
       "id": "coffee",
       "unlockCost": 0,
-      "spawnEvery": 3.0,
+      "spawnEvery": 2.7,
       "startSeats": 2,
       "maxSeats": 4,
       "seatCosts": [
@@ -13,7 +13,7 @@
     },
     {
       "id": "bakery",
-      "unlockCost": 60000,
+      "unlockCost": 35000,
       "spawnEvery": 3.4,
       "startSeats": 2,
       "maxSeats": 4,
@@ -24,13 +24,13 @@
     },
     {
       "id": "dessert",
-      "unlockCost": 15000000.0,
+      "unlockCost": 25000000,
       "spawnEvery": 3.8,
       "startSeats": 2,
       "maxSeats": 4,
       "seatCosts": [
-        40000000.0,
-        300000000.0
+        40000000,
+        300000000
       ]
     }
   ],
@@ -57,7 +57,7 @@
       "id": "croissant",
       "floor": "bakery",
       "value": 120,
-      "makeTime": 3.0,
+      "makeTime": 3,
       "unlockCost": 0,
       "levelCost": 4800,
       "levelGrowth": 1.18
@@ -67,7 +67,7 @@
       "floor": "bakery",
       "value": 800,
       "makeTime": 3.8,
-      "unlockCost": 600000.0,
+      "unlockCost": 400000,
       "levelCost": 48000,
       "levelGrowth": 1.18
     },
@@ -85,7 +85,7 @@
       "floor": "dessert",
       "value": 60000,
       "makeTime": 5.5,
-      "unlockCost": 150000000.0,
+      "unlockCost": 150000000,
       "levelCost": 6000000,
       "levelGrowth": 1.19
     }
@@ -124,10 +124,11 @@
     }
   ],
   "maxLevel": 200,
+  "levelCapBeforeLastFloor": 50,
   "counterCap": 2,
   "customers": {
     "walkIn": 1.4,
-    "leave": 1.0,
+    "leave": 1,
     "patience": 22
   },
   "tap": {
@@ -135,7 +136,7 @@
   },
   "staff": {
     "deliverTime": 1.1,
-    "pickupDelay": 1.0
+    "pickupDelay": 1
   },
   "vip": {
     "everyMin": 35,
@@ -206,6 +207,11 @@
     "freeUpgradeCooldown": 265,
     "freeUpgradeWindow": 150,
     "offlineMult": 2,
-    "dailyMult": 2
+    "dailyMult": 2,
+    "afterBuys": {
+      "rush": 0,
+      "freeAdopt": 0,
+      "freeUpgrade": 3
+    }
   }
 }

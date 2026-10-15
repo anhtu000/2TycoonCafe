@@ -2,7 +2,7 @@
 // The play scene and the balance simulator (tools/sim) both drive this class,
 // so simulated pacing matches the real game.
 import { pityLeft, rarityOdds, Rng, rollRarity } from '../../core/rng.ts';
-import type { AnimalDef, Content, ItemDef, StatId, UpgradeDef } from './content.ts';
+import type { AnimalDef, Content, ItemDef, StatId, TaskDef, UpgradeDef } from './content.ts';
 
 export type RunMode = 'main' | 'timed';
 export type RewardId = 'rush' | 'freeAdopt' | 'freeUpgrade';
@@ -88,6 +88,16 @@ export interface RunState {
   calm?: boolean;
   /** VIPs and customer variety wait for the tutorial. */
   vipOn?: boolean;
+  /** VIPs served by hand. */
+  vips?: number;
+  /** Short tasks (content.tasks): every task before this index is claimed; older saves start at 0. */
+  task?: number;
+  /** Tasks after `task` claimed early (the chain shows a done task among the next few first). */
+  taskSkip?: number[];
+  /** Purchases paid with coins in this run (rewards come back after a few of them on Poki). */
+  buys?: number;
+  /** Value of `buys` when each reward was last used. */
+  usedAt?: Partial<Record<RewardId, number>>;
 }
 
 export type CafeEvent =
@@ -98,7 +108,11 @@ export type CafeEvent =
   | { type: 'lost'; customer: Customer }
   | { type: 'gone'; customer: number }
   | { type: 'star'; stars: number }
-  | { type: 'finish' };
+  | { type: 'finish' }
+  /** An item reached a milestone level: its servings pay `mult` times more from now on. */
+  | { type: 'milestone'; item: string; level: number; mult: number }
+  /** The current short task is done and can be claimed. */
+  | { type: 'taskDone' };
 
 export interface AdoptResult {
   animal: AnimalDef;
@@ -144,6 +158,8 @@ export function newRunState(content: Content, mode: RunMode, seed: number): RunS
 }
 
 const RARITY_FLOOR = 0;
+/** How many tasks ahead a done one may be claimed out of order. */
+const TASK_WINDOW = 3;
 
 export class Cafe {
   readonly rng: Rng;
@@ -154,7 +170,15 @@ export class Cafe {
   private earnedStep = 0;
   /** Tip multiplier from outside the run (decorations, main run only). */
   extraTips = 1;
+  /** Decorations owned (outside the run, main run only), for decor tasks. */
+  decorCount = 0;
   private autoEarnedStep = 0;
+  /**
+   * Events caused by a purchase between steps (a star from opening a floor, a milestone level).
+   * They go out with the next step, so the scene sees them like any other event.
+   */
+  private pending: CafeEvent[] = [];
+  private lastTaskDone = false;
 
   readonly content: Content;
   readonly s: RunState;
@@ -274,7 +298,20 @@ export class Cafe {
 
   canLevelItem(id: string) {
     const st = this.s.items[id];
-    return st.unlocked && st.level < this.content.cafe.maxLevel;
+    return st.unlocked && st.level < this.levelCap();
+  }
+
+  /** Highest item level for now: cafe.levelCapBeforeLastFloor until the last floor opens, then maxLevel. */
+  levelCap() {
+    const cfg = this.content.cafe;
+    const last = this.s.floors[this.s.floors.length - 1];
+    return cfg.levelCapBeforeLastFloor !== undefined && !last.open ? Math.min(cfg.levelCapBeforeLastFloor, cfg.maxLevel) : cfg.maxLevel;
+  }
+
+  /** At the level cap that lifts when the last floor opens (not at maxLevel). */
+  levelCapped(id: string) {
+    const st = this.s.items[id];
+    return st.unlocked && st.level >= this.levelCap() && this.levelCap() < this.content.cafe.maxLevel;
   }
 
   upgradeCost(id: string) {
@@ -319,13 +356,21 @@ export class Cafe {
   private pay(cost: number) {
     if (cost > this.s.coins + 1e-9) return false;
     this.s.coins -= cost;
+    this.s.buys = (this.s.buys ?? 0) + 1;
     return true;
   }
 
   buyItemLevel(id: string) {
     if (!this.canLevelItem(id) || !this.pay(this.itemLevelCost(id))) return false;
-    this.s.items[id].level += 1;
+    this.levelUp(id);
     return true;
+  }
+
+  private levelUp(id: string) {
+    const st = this.s.items[id];
+    st.level += 1;
+    const m = this.content.cafe.milestones.find((x) => x.level === st.level);
+    if (m && m.value) this.pending.push({ type: 'milestone', item: id, level: st.level, mult: m.value });
   }
 
   unlockItem(id: string) {
@@ -345,7 +390,7 @@ export class Cafe {
     f.spawnTimer = 1;
     for (const item of this.itemsOnFloor(floor)) if (item.unlockCost === 0) this.s.items[item.id].unlocked = true;
     this.reassign();
-    this.checkGoals([]);
+    this.checkGoals(this.pending);
     return true;
   }
 
@@ -365,7 +410,7 @@ export class Cafe {
   /** Free item level (rewarded ad). */
   grantItemLevel(id: string) {
     if (!this.canLevelItem(id)) return false;
-    this.s.items[id].level += 1;
+    this.levelUp(id);
     return true;
   }
 
@@ -416,7 +461,7 @@ export class Cafe {
       this.addCoins(refund, false);
     } else this.s.staff[animal.id] = had + 1;
     this.reassign();
-    this.checkGoals([]);
+    this.checkGoals(this.pending);
     return { animal, rarity, isNew: had === 0, level: this.s.staff[animal.id], refund };
   }
 
@@ -462,6 +507,10 @@ export class Cafe {
 
   step(dt: number, events: CafeEvent[] = []): CafeEvent[] {
     const s = this.s;
+    if (this.pending.length) {
+      events.push(...this.pending);
+      this.pending = [];
+    }
     s.time += dt;
     if (s.rushLeft > 0) s.rushLeft = Math.max(0, s.rushLeft - dt);
 
@@ -553,6 +602,7 @@ export class Cafe {
     this.autoEarnedStep = 0;
 
     this.checkGoals(events);
+    this.checkTask(events);
     return events;
   }
 
@@ -614,7 +664,10 @@ export class Cafe {
     const cfg = this.content.cafe;
     let coins = this.itemValue(c.item) * (hand ? cfg.handBonus + this.stat('handTip') : 1) * (s.rushLeft > 0 ? cfg.rush.mult : 1);
     let vipBonus = 0;
-    if (c.vip && hand) vipBonus = Math.max(coins * 5, s.rate * cfg.vip.bonusSeconds);
+    if (c.vip && hand) {
+      vipBonus = Math.max(coins * 5, s.rate * cfg.vip.bonusSeconds);
+      s.vips = (s.vips ?? 0) + 1;
+    }
     this.earnedStep += coins;
     if (!hand) this.autoEarnedStep += coins;
     coins += vipBonus;
@@ -684,6 +737,113 @@ export class Cafe {
     }
   }
 
+  // ---------- short tasks ----------
+
+  /** Decor tasks need the decorations of the main cafe; a timed run skips them. */
+  private taskApplies(t: TaskDef) {
+    return !(t.type === 'decor' && this.s.mode !== 'main');
+  }
+
+  /**
+   * The task on show, or null when the chain is done. Tasks go in order, but a done task among the next
+   * TASK_WINDOW comes first, so one slow task (VIPs come when they come) never stalls the chain.
+   */
+  task(): TaskDef | null {
+    const list = this.content.tasks.tasks;
+    const skip = new Set(this.s.taskSkip ?? []);
+    let first: TaskDef | null = null;
+    let seen = 0;
+    for (let i = this.s.task ?? 0; i < list.length && seen < TASK_WINDOW; i++) {
+      const t = list[i];
+      if (skip.has(i) || !this.taskApplies(t)) continue;
+      seen++;
+      if (!first) first = t;
+      if (this.taskDone(t)) return t;
+    }
+    return first;
+  }
+
+  /** Tasks claimed so far. */
+  tasksClaimed() {
+    return (this.s.task ?? 0) + (this.s.taskSkip?.length ?? 0);
+  }
+
+  taskProgress(t: TaskDef | null = this.task()): { have: number; need: number } {
+    if (!t) return { have: 0, need: 1 };
+    const s = this.s;
+    const n = t.n ?? 1;
+    switch (t.type) {
+      case 'served':
+        return { have: s.served, need: n };
+      case 'vips':
+        return { have: s.vips ?? 0, need: n };
+      case 'itemLevel': {
+        const st = s.items[t.item!];
+        return { have: st.unlocked ? st.level : 0, need: n };
+      }
+      case 'unlock':
+        return { have: s.items[t.item!].unlocked ? 1 : 0, need: 1 };
+      case 'floor': {
+        // Coins saved toward the floor's price (the bar fills as the player saves).
+        const i = this.content.cafe.floors.findIndex((f) => f.id === t.floor);
+        const price = this.content.cafe.floors[i].unlockCost;
+        return s.floors[i].open ? { have: price, need: price } : { have: Math.min(Math.floor(s.coins), Math.max(0, price - 1)), need: price };
+      }
+      case 'seats': {
+        const i = this.content.cafe.floors.findIndex((f) => f.id === t.floor);
+        return { have: s.floors[i].open ? s.floors[i].seats : 0, need: n };
+      }
+      case 'upgrade':
+        return { have: this.level(t.upgrade!), need: n };
+      case 'adopts':
+        // Copies adopted: every adoption adds one level to an animal.
+        return { have: Object.values(s.staff).reduce((a, b) => a + b, 0), need: n };
+      case 'staff':
+        return { have: this.staffCount(), need: n };
+      case 'decor':
+        return { have: this.decorCount, need: n };
+      case 'earned':
+        return { have: s.totalEarned, need: n };
+    }
+  }
+
+  taskDone(t: TaskDef | null = this.task()) {
+    if (!t) return false;
+    const p = this.taskProgress(t);
+    return p.have >= p.need;
+  }
+
+  /** Coins the current task pays: seconds of current income, at least rewardMin. */
+  taskReward(t: TaskDef | null = this.task()) {
+    if (!t) return 0;
+    const cfg = this.content.tasks;
+    return Math.max(cfg.rewardMin, Math.round(Math.max(0, this.s.rate) * (t.sec ?? cfg.rewardSec)));
+  }
+
+  /** Takes the reward of a done task and moves on. Returns the coins, or 0 when not done. */
+  claimTask(): number {
+    const t = this.task();
+    if (!t || !this.taskDone(t)) return 0;
+    const coins = this.taskReward(t);
+    this.addCoins(coins, false);
+    const list = this.content.tasks.tasks;
+    const skip = new Set(this.s.taskSkip ?? []);
+    skip.add(list.indexOf(t));
+    // The chain start moves past every claimed (or not applicable) task.
+    let i = this.s.task ?? 0;
+    while (i < list.length && (skip.has(i) || !this.taskApplies(list[i]))) skip.delete(i++);
+    this.s.task = i;
+    this.s.taskSkip = [...skip].sort((a, b) => a - b);
+    this.lastTaskDone = false;
+    return coins;
+  }
+
+  private checkTask(events: CafeEvent[]) {
+    const done = this.taskDone();
+    if (done && !this.lastTaskDone) events.push({ type: 'taskDone' });
+    this.lastTaskDone = done;
+  }
+
   // ---------- rewards ----------
 
   rewardReady(id: RewardId) {
@@ -696,6 +856,53 @@ export class Cafe {
 
   startCooldown(id: RewardId, seconds: number) {
     this.s.rewardReadyAt[id] = this.s.time + seconds;
+  }
+
+  /**
+   * Poki build: no ad timers (Poki guide 7.1), so a used reward comes back after a few purchases
+   * (cafe.json rewarded.afterBuys): the offers follow the game, and taking every ad cannot replace playing.
+   */
+  rewardArmed(id: RewardId) {
+    const used = this.s.usedAt?.[id];
+    return used === undefined || (this.s.buys ?? 0) - used >= (this.content.cafe.rewarded.afterBuys[id] ?? 0);
+  }
+
+  /** Purchases left before a used reward comes back (0 = ready). */
+  buysToArm(id: RewardId) {
+    const used = this.s.usedAt?.[id];
+    if (used === undefined) return 0;
+    return Math.max(0, (this.content.cafe.rewarded.afterBuys[id] ?? 0) - ((this.s.buys ?? 0) - used));
+  }
+
+  useReward(id: RewardId) {
+    (this.s.usedAt ??= {})[id] = this.s.buys ?? 0;
+  }
+
+  /**
+   * Card for the rewarded free upgrade: the dearest item level or upgrade the player cannot afford yet,
+   * within rewarded.freeUpgradeWindow seconds of income. 'item:<id>' or 'up:<id>', or null.
+   */
+  freeUpgradeTarget(): string | null {
+    if (this.staffCount() === 0) return null;
+    const window = Math.max(this.s.rate, 1) * this.content.cafe.rewarded.freeUpgradeWindow;
+    let best: string | null = null;
+    let bestCost = 0;
+    for (const item of this.content.cafe.items) {
+      if (!this.s.items[item.id].unlocked || !this.canLevelItem(item.id)) continue;
+      const c = this.itemLevelCost(item.id);
+      if (c > this.s.coins && c <= window && c > bestCost) [best, bestCost] = [`item:${item.id}`, c];
+    }
+    for (const u of this.content.upgrades) {
+      if (!this.upgradeVisible(u) || this.upgradeMaxed(u.id)) continue;
+      const c = this.upgradeCost(u.id);
+      if (c > this.s.coins && c <= window && c > bestCost) [best, bestCost] = [`up:${u.id}`, c];
+    }
+    return best;
+  }
+
+  /** Gives the free upgrade on a card from freeUpgradeTarget. */
+  grantFree(id: string) {
+    return id.startsWith('item:') ? this.grantItemLevel(id.slice(5)) : this.grantUpgrade(id.slice(3));
   }
 
   startRush() {

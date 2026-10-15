@@ -6,7 +6,7 @@ Game #2: tycoon 2D, quán cozy 3 tầng do thú vận hành (CLAUDE.md mục 5, 
 
 | Chỗ | Việc |
 | --- | --- |
-| `src/content/*.json` | Mọi con số: tầng, món, mốc cấp, khách, thú, nâng cấp, quà ngày, quảng cáo (`cafe.json`, `staff.json`, `upgrades.json`, `decor.json`) |
+| `src/content/*.json` | Mọi con số: tầng, món, mốc cấp, giới hạn cấp trước Dessert Bar, khách, thú, nâng cấp, quà ngày, quảng cáo (`cafe.json`, `staff.json`, `upgrades.json`, `decor.json`); chuỗi nhiệm vụ ngắn (`tasks.json`, mỗi lúc một nhiệm vụ, thưởng theo giây thu nhập) |
 | `src/logic/cafe.ts` | Toàn bộ kinh tế một lượt chơi, không dùng Phaser. Màn chơi và bộ mô phỏng cùng chạy class `Cafe` |
 | `src/logic/cafe.test.ts` | Test logic (chạy bằng `npm test`) |
 | `src/render/` | Vẽ thú, món, máy, phòng, đồ trang trí bằng Canvas 2D rồi lưu thành texture |
@@ -15,7 +15,7 @@ Game #2: tycoon 2D, quán cozy 3 tầng do thú vận hành (CLAUDE.md mục 5, 
 | `src/ui/panels.ts` | Bảng nhận nuôi, Staff, menu, Decor, kỷ lục, về đích |
 | `src/scenes/PlayScene.ts`, `HomeScene.ts` | Màn chơi và màn menu cho người đã có save |
 | `src/game/presets.ts` | Trạng thái dựng sẵn để thử (chỉ bản web): `#staff`, `#dessert`, `#finish`; `#reset` xoá save thử |
-| `tools/sim/` | Mô phỏng kinh tế: `npm run sim` (200 lượt mỗi kiểu người chơi), `npm run sim:quick -- 1000 active none` (một lượt chi tiết theo phút) |
+| `tools/sim/` | Mô phỏng kinh tế: `npm run sim` (200 lượt mỗi kiểu người chơi), `npm run sim:quick -- 1000 active none` (một lượt chi tiết theo phút), `npm run sim:pacing` (nhịp theo phút: số lần chạm, đưa món, mua, nhiệm vụ, thứ mới, thời gian không có việc; 3 kiểu người chơi × không quảng cáo / Poki / xem mọi quảng cáo; thêm `--json out.json` để xuất số liệu) |
 
 ## Cài đặt
 
@@ -33,6 +33,7 @@ Game #2: tycoon 2D, quán cozy 3 tầng do thú vận hành (CLAUDE.md mục 5, 
 | `npm run dev:poki` | Chạy thử với Poki SDK (thử quảng cáo bằng Poki Inspector) |
 | `npm run build:single` | Gói bản web thành một file HTML (`dist/single/`) để mở trên điện thoại hoặc đăng artifact |
 | `npm run sim` | Mô phỏng kinh tế (CLAUDE.md mục 5a) |
+| `npm run sim:pacing` | Nhịp chơi theo phút và khoảng trống dài nhất (CLAUDE.md mục 5a) |
 | `npm run build:web` | Build không có SDK vào `dist/web` (để đăng artifact, chạy thử trên điện thoại) |
 | `npm run preview` | Phục vụ bản build CrazyGames để thử |
 | `npm test` | Test các hàm định dạng số, thời gian, quà hằng ngày |

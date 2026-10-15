@@ -140,6 +140,21 @@ export const bookIcon: GlyphDraw = (g, size, color) => {
   g.fillRect(-s * 0.05, -s * 0.7, s * 0.1, s * 1.4);
 };
 
+/** Short task: a clipboard with a tick. */
+export const taskIcon: GlyphDraw = (g, size, color) => {
+  const s = size / 2;
+  g.fillStyle(color, 1);
+  g.fillRoundedRect(-s * 0.72, -s * 0.8, s * 1.44, s * 1.75, s * 0.18);
+  g.fillStyle(0x000000, 0.28);
+  g.fillRoundedRect(-s * 0.32, -s * 0.98, s * 0.64, s * 0.34, s * 0.1);
+  g.lineStyle(s * 0.2, 0x3b2a22, 0.85);
+  g.beginPath();
+  g.moveTo(-s * 0.36, s * 0.12);
+  g.lineTo(-s * 0.06, s * 0.42);
+  g.lineTo(s * 0.42, -s * 0.2);
+  g.strokePath();
+};
+
 /** Icons of the cafe-wide upgrades. */
 export const UPGRADE_ICONS: Record<string, GlyphDraw> = {
   smile: (g, size, c) => {

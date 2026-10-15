@@ -19,6 +19,7 @@
     "sync-core": "node scripts/sync-core.mjs",
     "sim": "node --experimental-strip-types tools/sim/run.ts 200",
     "sim:quick": "node --experimental-strip-types tools/sim/quick.ts",
+    "sim:pacing": "node --experimental-strip-types tools/sim/pacing.ts 100",
     "build:single": "npm run build:web && node scripts/build-single.mjs dist/web dist/single/TinyTailsCafe_PhoneTest_v1.html"
   },
   "dependencies": {

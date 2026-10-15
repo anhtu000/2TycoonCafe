@@ -41,7 +41,7 @@ export interface SaveData {
  * Test builds only (web). Changing this wipes the test saves on the next load, so a new round of
  * testing starts from the beginning. #reset in the address does the same once.
  */
-const WEB_SAVE_EPOCH = '2026-10-14a';
+const WEB_SAVE_EPOCH = '2026-10-15a';
 
 if (__TARGET__ === 'web') {
   try {

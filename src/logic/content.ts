@@ -52,6 +52,11 @@ export interface CafeDef {
   items: ItemDef[];
   milestones: MilestoneDef[];
   maxLevel: number;
+  /**
+   * Item levels stop here until the last floor opens ("More levels after the Dessert Bar"), so coins
+   * cannot pour into the cheap first items forever while the next floor waits (CLAUDE.md 5a).
+   */
+  levelCapBeforeLastFloor?: number;
   /** Ready servings a counter spot holds per item. */
   counterCap: number;
   customers: { walkIn: number; leave: number; patience: number };
@@ -77,6 +82,8 @@ export interface CafeDef {
     freeUpgradeWindow: number;
     offlineMult: number;
     dailyMult: number;
+    /** Poki build (no ad timers): purchases needed before a used reward is offered again. */
+    afterBuys: Partial<Record<'rush' | 'freeAdopt' | 'freeUpgrade', number>>;
   };
 }
 
@@ -127,17 +134,46 @@ export interface UpgradeDef {
   show: ShowRule;
 }
 
+export type TaskType = 'served' | 'vips' | 'itemLevel' | 'unlock' | 'floor' | 'seats' | 'upgrade' | 'adopts' | 'staff' | 'decor' | 'earned';
+
+/**
+ * One short task (CLAUDE.md 5a): one at a time, in order, claimed with a tap for coins.
+ * served, vips, adopts, staff, decor, earned: reach n in this run (decor: items owned, main run only).
+ * itemLevel: item to level n. unlock: item on the menu. floor: floor open. seats: n seats on floor. upgrade: upgrade to level n.
+ */
+export interface TaskDef {
+  id: string;
+  type: TaskType;
+  n?: number;
+  item?: string;
+  floor?: string;
+  upgrade?: string;
+  /** Reward in seconds of income instead of the default. */
+  sec?: number;
+}
+
+export interface TasksDef {
+  /** Reward: this many seconds of current income, at least rewardMin coins. */
+  rewardSec: number;
+  rewardMin: number;
+  tasks: TaskDef[];
+}
+
 export interface Content {
   cafe: CafeDef;
   staff: StaffDef;
   upgrades: UpgradeDef[];
+  tasks: TasksDef;
 }
 
-export function checkContent(raw: { cafe: unknown; staff: unknown; upgrades: unknown }): Content {
+const TASK_TYPES: TaskType[] = ['served', 'vips', 'itemLevel', 'unlock', 'floor', 'seats', 'upgrade', 'adopts', 'staff', 'decor', 'earned'];
+
+export function checkContent(raw: { cafe: unknown; staff: unknown; upgrades: unknown; tasks: unknown }): Content {
   const c = contentChecker('src/content');
   const cafe = raw.cafe as CafeDef;
   const staff = raw.staff as StaffDef;
   const upgrades = (raw.upgrades as { upgrades: UpgradeDef[] }).upgrades;
+  const tasks = raw.tasks as TasksDef;
 
   c.uniqueIds(cafe.floors, 'floor');
   c.uniqueIds(cafe.items, 'item');
@@ -157,6 +193,7 @@ export function checkContent(raw: { cafe: unknown; staff: unknown; upgrades: unk
     c.need(i.levelGrowth > 1, `item ${i.id} levelGrowth must be above 1`);
   }
   c.need(cafe.goals.length === 5, 'there must be exactly 5 goals (one per star)');
+  if (cafe.levelCapBeforeLastFloor !== undefined) c.need(cafe.levelCapBeforeLastFloor >= 10 && cafe.levelCapBeforeLastFloor <= cafe.maxLevel, 'levelCapBeforeLastFloor: 10..maxLevel');
   for (const g of cafe.goals) {
     if (g.floor) c.ref(g.floor, floorIds, `goal ${g.id}`);
     if (g.itemLevel) c.ref(g.itemLevel, cafe.items.map((i) => i.id), `goal ${g.id}`);
@@ -175,6 +212,35 @@ export function checkContent(raw: { cafe: unknown; staff: unknown; upgrades: unk
     c.need(u.max >= 1, `upgrade ${u.id} max`);
     if (u.show.floor) c.ref(u.show.floor, floorIds, `upgrade ${u.id} show.floor`);
   }
+
+  c.positive(tasks.rewardSec, 'tasks.rewardSec');
+  c.uniqueIds(tasks.tasks, 'task');
+  const itemIds = cafe.items.map((i) => i.id);
+  for (const t of tasks.tasks) {
+    c.ref(t.type, TASK_TYPES, `task ${t.id} type`);
+    if (t.type === 'itemLevel' || t.type === 'unlock') c.ref(t.item ?? '', itemIds, `task ${t.id} item`);
+    if (t.type === 'floor') c.ref(t.floor ?? '', floorIds, `task ${t.id} floor`);
+    if (t.type === 'itemLevel' && cafe.levelCapBeforeLastFloor !== undefined) {
+      // A level above the cap can only come after the task that opens the last floor.
+      const last = cafe.floors[cafe.floors.length - 1].id;
+      const openAt = tasks.tasks.findIndex((x) => x.type === 'floor' && x.floor === last);
+      const i = tasks.tasks.indexOf(t);
+      c.need((t.n ?? 0) <= cafe.levelCapBeforeLastFloor || (openAt >= 0 && openAt < i), `task ${t.id}: level above levelCapBeforeLastFloor before the last floor opens`);
+    }
+    if (t.type === 'seats') {
+      c.ref(t.floor ?? '', floorIds, `task ${t.id} floor`);
+      const f = cafe.floors.find((x) => x.id === t.floor);
+      c.need(!f || (t.n ?? 0) <= f.maxSeats, `task ${t.id}: more seats than the floor has`);
+    }
+    if (t.type === 'upgrade') {
+      c.ref(t.upgrade ?? '', upgrades.map((u) => u.id), `task ${t.id} upgrade`);
+      const u = upgrades.find((x) => x.id === t.upgrade);
+      c.need(!u || (t.n ?? 0) <= u.max, `task ${t.id}: level above the upgrade's max`);
+    }
+    if (t.type === 'itemLevel') c.need((t.n ?? 0) <= cafe.maxLevel, `task ${t.id}: level above maxLevel`);
+    if (t.type === 'staff') c.need((t.n ?? 0) <= staff.animals.length, `task ${t.id}: more helpers than animals`);
+    if (t.type !== 'unlock' && t.type !== 'floor') c.need((t.n ?? 0) >= 1, `task ${t.id} needs n >= 1`);
+  }
   c.done();
-  return { cafe, staff, upgrades };
+  return { cafe, staff, upgrades, tasks };
 }

@@ -76,7 +76,8 @@
     "adoptDesc": "A new animal for your staff",
     "adoptDup": "Find rarer helpers",
     "seat": "Extra Seat",
-    "seatDesc": "{floor}: one more customer"
+    "seatDesc": "{floor}: one more customer",
+    "capped": "More levels after the {floor}"
   },
   "boost": {
     "rush": "Rush Hour",
@@ -194,6 +195,24 @@
     "ticket": "Free helper ready in the shop",
     "floorOpen": "{floor} is open!",
     "itemNew": "{item} is on the menu!",
-    "away": "Your helpers earned {n} while you were away"
+    "away": "Your helpers earned {n} while you were away",
+    "milestone": "{item} x{n} at Lv {l}!"
+  },
+  "task": {
+    "claim": "Claim",
+    "served": "Serve {n} customers",
+    "vip1": "Serve a VIP",
+    "vips": "Serve {n} VIPs",
+    "itemLevel": "{item} to Lv {n}",
+    "unlock": "Add {item}",
+    "seats": "{floor}: {n} seats",
+    "upgrade1": "Buy {name}",
+    "upgrade": "{name} Lv {n}",
+    "adopts": "Adopt {n} times",
+    "staff": "Hire {n} helpers",
+    "decor1": "Buy a decoration",
+    "decor": "Own {n} decorations",
+    "earned": "Earn {n} coins",
+    "floor": "Open the {floor}"
   }
 }

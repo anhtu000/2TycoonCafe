@@ -209,6 +209,18 @@ export class ShopList {
     this.scroll = Phaser.Math.Clamp(i * (this.span + this.gap) - this.gap, 0, this.maxScroll());
   }
 
+  /** Scrolls to a card and makes it bounce: "this one" (task hints). */
+  pulse(id: string) {
+    const card = this.cards.get(id);
+    if (!card || !this.list.includes(id)) return false;
+    this.reveal(id);
+    this.scene.time.delayedCall(60, () => {
+      punch(this.scene, card.box, 0.12, 320);
+      this.scene.time.delayedCall(360, () => punch(this.scene, card.box, 0.08, 260));
+    });
+    return true;
+  }
+
   /** Arrow tap: on by a screenful, keeping the last card that was in view as context. */
   private page() {
     const step = this.span + this.gap;
