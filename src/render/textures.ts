@@ -31,9 +31,12 @@ function addCanvas(scene: Phaser.Scene, key: string, w: number, h: number, draw:
  * The texture is square plus headroom on top; display it with origin (0.5, 1) at the feet.
  */
 export function animalTexture(scene: Phaser.Scene, id: string, kind: { staff: number } | { scarf: number }, mood: Mood = 'neutral') {
-  const tag = 'staff' in kind ? `s${kind.staff}` : `c${kind.scarf}`;
+  // The key names what is drawn, never a running number: one texture per animal, outfit color and mood.
+  // (A key with the customer id made a new texture for every customer: ~4 GB after 40 minutes.)
+  const scarf = 'scarf' in kind ? ((kind.scarf % SCARF_COLORS.length) + SCARF_COLORS.length) % SCARF_COLORS.length : 0;
+  const tag = 'staff' in kind ? `s${kind.staff}` : `c${scarf}`;
   const key = `animal:${id}:${tag}:${mood}`;
-  const outfit: Outfit = 'staff' in kind ? { kind: 'apron', color: APRON_COLORS[kind.staff] ?? APRON_COLORS[0] } : { kind: 'scarf', color: SCARF_COLORS[kind.scarf % SCARF_COLORS.length] };
+  const outfit: Outfit = 'staff' in kind ? { kind: 'apron', color: APRON_COLORS[kind.staff] ?? APRON_COLORS[0] } : { kind: 'scarf', color: SCARF_COLORS[scarf] };
   return addCanvas(scene, key, ANIMAL_PX, ANIMAL_PX * (1 + HEADROOM), (ctx) => {
     ctx.translate(0, ANIMAL_PX * HEADROOM);
     drawAnimal(ctx, ANIMAL_PX, id, outfit, mood);
