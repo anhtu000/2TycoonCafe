@@ -1,0 +1,277 @@
+{
+  "lang": {
+    "name": "Türkçe"
+  },
+  "core": {
+    "loading": "Yükleniyor",
+    "play": "Oyna",
+    "continue": "Devam",
+    "resume": "Sürdür",
+    "paused": "Duraklatıldı",
+    "menu": "Ana menü",
+    "sound": "Ses",
+    "on": "Açık",
+    "off": "Kapalı",
+    "language": "Dil",
+    "adUnavailable": "Şu an reklam yok. Daha sonra tekrar dene.",
+    "adBlocked": "Reklamlar engellendiği için bu ödül alınamıyor.",
+    "readyIn": "{t} sonra hazır",
+    "welcomeBack": "Tekrar hoş geldin!",
+    "awayFor": "{t} uzaktaydın",
+    "collect": "Topla",
+    "collectDouble": "Topla x{n}",
+    "dailyTitle": "Günlük hediye",
+    "dayN": "{n}. gün",
+    "claim": "Al",
+    "claimDouble": "Al x{n}",
+    "comeBack": "{n}. gün için yarın gel",
+    "close": "Kapat"
+  },
+  "unit": {
+    "d": "g",
+    "h": "sa",
+    "m": "dk",
+    "s": "sn"
+  },
+  "item": {
+    "coffee": "Kahve",
+    "tea": "Matcha Çayı",
+    "croissant": "Kruvasan",
+    "cake": "Çilekli Pasta",
+    "icecream": "Dondurma",
+    "bubbletea": "Bubble Tea"
+  },
+  "floor": {
+    "coffee": "Kahve Köşesi",
+    "bakery": "Fırın",
+    "dessert": "Tatlı Barı",
+    "later": "Önce alttaki katı aç"
+  },
+  "animal": {
+    "capybara": "Kapibara",
+    "hamster": "Hamster",
+    "bunny": "Tavşan",
+    "cat": "Kedi",
+    "shiba": "Shiba",
+    "penguin": "Penguen",
+    "koala": "Koala",
+    "redpanda": "Kızıl Panda",
+    "panda": "Panda",
+    "axolotl": "Aksolotl",
+    "snowfox": "Kar Tilkisi"
+  },
+  "rarity": {
+    "common": "Sıradan",
+    "rare": "Nadir",
+    "epic": "Epik",
+    "legendary": "Efsanevi"
+  },
+  "perk": {
+    "speed": "%{n} daha hızlı çalışır",
+    "tips": "Bahşiş +%{n}",
+    "base": "Hız x{n}"
+  },
+  "upgrade": {
+    "smile": {
+      "name": "Güler Yüz",
+      "desc": "Kendin servis yapınca daha çok bahşiş"
+    },
+    "hands": {
+      "name": "Çevik Eller",
+      "desc": "Makineye her dokunuş daha etkili"
+    },
+    "sign": {
+      "name": "Sevimli Tabela",
+      "desc": "Müşteriler daha sık gelir"
+    },
+    "chairs": {
+      "name": "Rahat Sandalyeler",
+      "desc": "Müşteriler daha uzun bekler"
+    },
+    "tipjar": {
+      "name": "Bahşiş Kavanozu",
+      "desc": "Her müşteri daha çok öder"
+    },
+    "training": {
+      "name": "Personel Eğitimi",
+      "desc": "Yardımcılar daha hızlı çalışır"
+    },
+    "pantry": {
+      "name": "Büyük Kiler",
+      "desc": "Uzaktayken daha uzun süre kazan"
+    },
+    "nightshift": {
+      "name": "Gece Vardiyası",
+      "desc": "Uzaktayken +2 saat kazanç"
+    }
+  },
+  "shop": {
+    "level": "Sv. {n}",
+    "max": "MAKS",
+    "free": "Bedava",
+    "itemDesc": "Her servis daha çok kazandırır",
+    "itemNext": "x{n}: Sv. {l}",
+    "adopt": "Yardımcı Sahiplen",
+    "adoptDesc": "Ekibine yeni bir hayvan",
+    "adoptDup": "Daha nadir yardımcılar bul",
+    "seat": "Ek Koltuk",
+    "seatDesc": "{floor}: bir müşteri daha",
+    "capped": "Daha fazla seviye için aç: {floor}",
+    "special": "Günün menüsü: x{n} jeton"
+  },
+  "boost": {
+    "rush": "Yoğun Saat",
+    "rushDesc": "60 sn boyunca x2 jeton",
+    "rushOn": "Açık: {t} kaldı",
+    "adopt": "Bedava Yardımcı",
+    "adoptDesc": "Bedava bir hayvan sahiplen",
+    "upgrade": "Bedava Geliştirme"
+  },
+  "hud": {
+    "perSec": "+{n}/sn",
+    "goal": {
+      "serve": "{n} müşteriye servis yap",
+      "bakery": "Fırını aç",
+      "staff": "{n} yardımcı al",
+      "dessert": "Tatlı Barını aç",
+      "bubbletea": "Bubble Tea Sv. {n}"
+    },
+    "allStars": "Beş yıldızlı kafe!",
+    "rush": "Yoğun Saat x2  {t}",
+    "timed": "Zamana karşı"
+  },
+  "tut": {
+    "make": "Kahve makinesine dokun",
+    "serve": "Servis için müşteriye dokun",
+    "upgrade": "Kahveyi geliştir",
+    "tea": "Matcha çayı ekle",
+    "adopt": "Bir yardımcı sahiplen",
+    "helper": "Yardımcılar senin için çalışır!",
+    "vip": "VIP! Servisi sen yap",
+    "bakery": "Fırını aç",
+    "seat": "Daha çok koltuk, daha çok müşteri",
+    "rush": "Bir dakika boyunca çift jeton",
+    "gotIt": "Anladım",
+    "notReady": "Önce makineye dokun",
+    "space": "İpucu: hızlı dokun, siparişler hızlansın"
+  },
+  "adopt": {
+    "title": "Yeni yardımcı!",
+    "levelUp": "Seviye atladı!",
+    "maxed": "Zaten en üst seviyede: +{n} jeton",
+    "worksAt": "Çalıştığı yer: {item}",
+    "resting": "Dinleniyor (tüm yerler dolu)",
+    "odds": "{r} · 1/{n}",
+    "ok": "Harika!",
+    "gift": "{r} · 7. gün hediyesi"
+  },
+  "book": {
+    "title": "Ekip",
+    "odds": "Sahiplenme başına şans",
+    "pityEpic": "En geç {n} denemede Epik",
+    "pityLegend": "En geç {n} denemede Efsanevi",
+    "unknown": "???",
+    "level": "Sv. {n}",
+    "daily7": "7. gün hediyesi"
+  },
+  "star": {
+    "got": "Yeni yıldız!",
+    "next": "Sıradaki: {goal}"
+  },
+  "finish": {
+    "title": "Beş yıldızlı kafe!",
+    "timedTitle": "Tur tamam!",
+    "time": "Süre: {t}",
+    "served": "Servis yapılan müşteri: {n}",
+    "staff": "Yardımcılar: {n}/{m}",
+    "best": "En iyi: {t}",
+    "newBest": "Yeni rekor!",
+    "keep": "Devam et",
+    "timed": "Zamana karşı",
+    "again": "Tekrar oyna",
+    "back": "Kafeme dön",
+    "firstNote": "Her gün uğra: 3 yeni sipariş ve günün menüsü!"
+  },
+  "menu": {
+    "title": "Menü",
+    "continue": "Devam",
+    "resume": "Kafeye dön",
+    "staff": "Ekip",
+    "decor": "Dekor",
+    "timed": "Zamana karşı",
+    "records": "Rekorlar",
+    "daily": "Günlük hediye",
+    "home": "Ana sayfa",
+    "leaveTimed": "Turdan çık",
+    "soundOn": "Ses: Açık",
+    "soundOff": "Ses: Kapalı",
+    "language": "Dil: {lang}"
+  },
+  "decor": {
+    "title": "Dekor",
+    "info": "Her dekor: +%3 bahşiş",
+    "ad": "Bedava: {item}",
+    "fern": "Eğrelti Otu",
+    "clock": "Duvar Saati",
+    "lamp": "Sarkıt Lamba",
+    "frame": "Manzara Tablosu",
+    "cactus": "Kaktüs",
+    "bunting": "Flama",
+    "shelf": "Kavanoz Rafı",
+    "poster": "Pasta Posteri",
+    "monstera": "Monstera",
+    "lights": "Peri Işıkları",
+    "neon": "Neon Kalp",
+    "aquarium": "Akvaryum"
+  },
+  "daily": {
+    "coins": "{n} dk",
+    "ticket": "Yardımcı",
+    "rarePal": "Nadir dost",
+    "fox": "Kar Tilkisi"
+  },
+  "records": {
+    "title": "Rekorlar",
+    "empty": "Rekor için bir zamana karşı turu bitir",
+    "row": "{i}. {t}"
+  },
+  "toast": {
+    "vip": "VIP bahşişi! +{n}",
+    "ticket": "Bedava yardımcı mağazada hazır",
+    "floorOpen": "{floor} açıldı!",
+    "itemNew": "{item} menüde!",
+    "away": "Sen yokken yardımcıların {n} kazandı",
+    "milestone": "{item} Sv. {l}: x{n}!",
+    "newDay": "Yeni siparişler! Günün menüsü: {item} x{n}",
+    "ordersDone": "Siparişler tamam! Bedava yardımcı mağazada",
+    "gift": "{name} kafeye katıldı!",
+    "giftLevel": "{name} Sv. {n}!"
+  },
+  "task": {
+    "claim": "Al",
+    "served": "{n} müşteriye servis yap",
+    "vip1": "Bir VIP'ye servis yap",
+    "vips": "{n} VIP'ye servis yap",
+    "itemLevel": "{item} Sv. {n}",
+    "unlock": "Ekle: {item}",
+    "seats": "{floor}: {n} koltuk",
+    "upgrade1": "Satın al: {name}",
+    "upgrade": "{name} Sv. {n}",
+    "adopts": "{n} kez sahiplen",
+    "staff": "{n} yardımcı al",
+    "decor1": "Bir dekor satın al",
+    "decor": "{n} dekora sahip ol",
+    "earned": "{n} jeton kazan",
+    "floor": "Aç: {floor}"
+  },
+  "order": {
+    "served": "Bugün: {n} müşteriye servis",
+    "hand": "Bugün: elle {n} servis",
+    "vips": "Bugün: {n} VIP'ye servis",
+    "sold": "Bugün: {n} × {item} sat",
+    "special": "Bugün: {n} × {item} sat",
+    "buys": "Bugün: {n} satın alma",
+    "sales": "Bugün: {n} kazan",
+    "tomorrow": "Yeni siparişler yarın"
+  }
+}

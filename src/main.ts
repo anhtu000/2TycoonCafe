@@ -1,15 +1,42 @@
 import { startGame } from '@core';
 import game from './game.json';
+import de from './i18n/de.json';
 import en from './i18n/en.json';
+import es from './i18n/es.json';
+import fr from './i18n/fr.json';
+import it from './i18n/it.json';
+import tr from './i18n/tr.json';
 import { save } from './save';
 import { HomeScene } from './scenes/HomeScene';
 import { PlayScene } from './scenes/PlayScene';
 
+// Poki: the game speaks the language of the Poki site the player is on (Poki guide 5.3, PokiSDK.getLanguage).
+// Core asks the browser (navigator.language); here that answer comes from the SDK when it has one,
+// read lazily so the SDK is ready by then. Players can still pick another language in the menu.
+if (__TARGET__ === 'poki') {
+  try {
+    const browser = navigator.language;
+    const sdk = () => (window as unknown as { PokiSDK?: { getLanguage?: () => string } }).PokiSDK;
+    Object.defineProperty(navigator, 'language', {
+      configurable: true,
+      get: () => {
+        try {
+          return sdk()?.getLanguage?.() || browser;
+        } catch {
+          return browser;
+        }
+      },
+    });
+  } catch {
+    // Keep the browser's language.
+  }
+}
+
 startGame({
   id: game.id,
   title: game.title,
-  // English only in v1. Other languages come with Yandex.
-  languages: { en },
+  // EFIGS + Turkish (Poki guide 9). Core strings that core has no translation for are in each game file.
+  languages: { en, fr, it, de, es, tr },
   scenes: [HomeScene, PlayScene],
   playScene: 'Play',
   // New players go straight into the cafe; returning players see the home screen (CLAUDE.md 4.2).

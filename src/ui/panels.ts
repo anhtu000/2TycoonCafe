@@ -42,7 +42,8 @@ function oneIn(p: number) {
 
 /** The adopted animal pops in, with its rarity, odds and where it works. */
 export function showAdoptReveal(scene: Phaser.Scene, cafe: Cafe, r: AdoptResult, onClose?: () => void): Panel {
-  const panel = new Panel(scene, { title: r.isNew ? app.t('adopt.title') : app.t('adopt.levelUp'), width: 560, height: 760, onClose });
+  // Wide enough that a long title ("¡Nuevo ayudante!") stays clear of the close button.
+  const panel = new Panel(scene, { title: r.isNew ? app.t('adopt.title') : app.t('adopt.levelUp'), width: 640, height: 760, onClose });
   const rarity = cafe.content.staff.rarities[r.rarity];
   const color = RARITY_HEX[r.rarity];
   const y0 = panel.top + 170;
@@ -127,13 +128,22 @@ export interface MenuEntry {
   badge?: boolean;
 }
 
-/** List of places to go. Each entry closes the menu first. */
-export function showGameMenu(scene: Phaser.Scene, entries: MenuEntry[], onClose?: () => void): Panel {
+/**
+ * List of places to go. Each entry closes the menu first. When one column does not fit the screen
+ * (landscape with many entries), the entries go in two columns.
+ */
+export function showGameMenu(scene: Phaser.Scene, entries: MenuEntry[], onClose?: () => void, title = app.t('menu.title')): Panel {
   const rowH = 88;
-  const panel = new Panel(scene, { title: app.t('menu.title'), width: 540, height: 120 + entries.length * rowH + 40, onClose });
+  const vp = app.viewport.info;
+  const cols = 120 + entries.length * rowH + 40 > vp.height - 80 ? 2 : 1;
+  const rows = Math.ceil(entries.length / cols);
+  const colW = 450;
+  const panel = new Panel(scene, { title, width: cols === 2 ? colW * 2 + 60 : 540, height: 120 + rows * rowH + 40, onClose });
   entries.forEach((e, i) => {
-    const y = panel.top + rowH / 2 - 10 + i * rowH;
-    const b = new Button(scene, 0, y, {
+    const col = cols === 2 ? Math.floor(i / rows) : 0;
+    const x = cols === 2 ? (col - 0.5) * colW : 0;
+    const y = panel.top + rowH / 2 - 10 + (i % rows) * rowH;
+    const b = new Button(scene, x, y, {
       label: e.label,
       icon: e.icon,
       width: 420,
@@ -150,9 +160,9 @@ export function showGameMenu(scene: Phaser.Scene, entries: MenuEntry[], onClose?
     if (e.badge) {
       const dot = scene.add.graphics();
       dot.fillStyle(0xff5a6e, 1);
-      dot.fillCircle(196, y - 28, 11);
+      dot.fillCircle(x + 196, y - 28, 11);
       dot.lineStyle(3, 0xffffff, 1);
-      dot.strokeCircle(196, y - 28, 11);
+      dot.strokeCircle(x + 196, y - 28, 11);
       panel.content.add(dot);
     }
   });

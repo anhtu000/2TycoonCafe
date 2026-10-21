@@ -25,8 +25,9 @@ import { content, decorContent } from '../game/content';
 import { AD_TIMERS, boostCooldown, breakAd, dailyClaimable, mainCafe, noteAnimal, openDaily, takeDailyOffer } from '../game/meta';
 import { Cafe, newRunState, type AdoptResult, type CafeEvent, type OrderState } from '../logic/cafe.ts';
 import { decorTipMult } from '../logic/decor.ts';
-import { boltIcon, bookIcon, coinIcon, COIN_COLOR, menuIcon, pawIcon, plantIcon, seatIcon, starIcon, starSlotIcon, stopwatchIcon, trophyIcon, UPGRADE_ICONS } from '../render/icons';
+import { boltIcon, bookIcon, coinIcon, COIN_COLOR, globeIcon, menuIcon, pawIcon, plantIcon, seatIcon, starIcon, starSlotIcon, stopwatchIcon, trophyIcon, UPGRADE_ICONS } from '../render/icons';
 import { animalTexture, itemTexture } from '../render/textures';
+import { startMusic } from '../game/music';
 import { save } from '../save';
 import { Floor } from '../ui/Floor';
 import { showAdoptReveal, showDecor, showFinish, showGameMenu, showRecords, showStaffBook } from '../ui/panels';
@@ -174,6 +175,7 @@ export class PlayScene extends BaseScene {
     this.refreshHud();
     this.welcome();
     this.startIntro();
+    startMusic(this);
   }
 
   protected layout(vp: ViewportInfo) {
@@ -202,7 +204,8 @@ export class PlayScene extends BaseScene {
       this.rate.setPosition(s.x + 172, y1 + 36);
       this.stars.forEach((st, i) => st.setPosition(vp.width - s.x - 300 + i * 42, y1 - 8));
       // The star goal sits under the stars; the second row is the task bar (and the clock in a timed run).
-      this.goalRect = { x: vp.width - s.x - 216, y: y1 + 32, w: 290 };
+      // Kept clear of the menu button on the right: long goal lines (other languages) shrink instead.
+      this.goalRect = { x: vp.width - s.x - 216, y: y1 + 32, w: 234 };
       const timed = this.cafe.s.mode === 'timed';
       this.clock.setPosition(vp.width - s.x - 24, ty + 130);
       // Poki's button sits top-left on phones (46x62 CSS px from 24 px down): the task bar starts right of it.
@@ -887,6 +890,7 @@ export class PlayScene extends BaseScene {
           ]),
       ...(save.data.firstFinishMs > 0 && !timed ? [{ label: app.t('menu.timed'), icon: stopwatchIcon, onClick: () => this.startTimed() }] : []),
       ...(save.data.records.length ? [{ label: app.t('menu.records'), icon: trophyIcon, onClick: () => this.showPanel(() => showRecords(this, null, () => this.panelClosed())) }] : []),
+      { label: app.t('menu.language', { lang: app.i18n.nameOf(app.i18n.lang) }), icon: globeIcon, onClick: () => this.showPanel(() => this.languagePanel()) },
       timed
         ? { label: app.t('menu.leaveTimed'), icon: icons.homeIcon, onClick: () => this.leaveTimed() }
         : app.menuKey
@@ -902,6 +906,22 @@ export class PlayScene extends BaseScene {
         if (!this.panel) this.panelClosed();
       });
     });
+  }
+
+  /** Every language by its own name; the current one is marked. Picking one restarts the scene in that language. */
+  private languagePanel(): Panel {
+    const current = app.i18n.lang;
+    const entries = app.i18n.languages.map((lang) => ({
+      label: lang === current ? `${app.i18n.nameOf(lang)}  ✓` : app.i18n.nameOf(lang),
+      onClick: () => {
+        if (lang === current) return;
+        this.leaving = true;
+        this.stopPlay();
+        save.flush();
+        void app.setLanguage(lang).then(() => this.scene.restart());
+      },
+    }));
+    return showGameMenu(this, entries, () => this.panelClosed(), app.t('core.language'));
   }
 
   private applyDecor() {

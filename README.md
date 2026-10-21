@@ -15,7 +15,11 @@ Game #2: tycoon 2D, quán cozy 3 tầng do thú vận hành (CLAUDE.md mục 5, 
 | `src/ui/ShopList.ts` | Dải nâng cấp (dọc trên máy tính, ngang trên điện thoại) |
 | `src/ui/panels.ts` | Bảng nhận nuôi, Staff, menu, Decor, kỷ lục, về đích |
 | `src/scenes/PlayScene.ts`, `HomeScene.ts` | Màn chơi và màn menu cho người đã có save |
+| `src/i18n/*.json` | Chữ trong game, 6 ngôn ngữ: en, fr, it, de, es, tr (kể cả chữ của `core/` mà `core/` chưa dịch). Trên Poki ngôn ngữ lấy từ `PokiSDK.getLanguage()` (`src/main.ts`); người chơi đổi trong menu. `src/i18n/i18n.test.ts` kiểm đủ khoá và đúng `{biến}`. Bản dịch do Claude làm, cần người bản ngữ đọc lại |
+| `src/game/music.ts` | Nhạc nền: tải sau khi vào quán, lặp liền, theo nút tắt tiếng |
+| `store/poki_listing.md` | Nội dung trang game trên Poki: tên, thể loại, mô tả, điểm khác biệt, điều khiển, lộ trình cập nhật |
 | `src/game/presets.ts` | Trạng thái dựng sẵn để thử (chỉ bản web): `#staff`, `#dessert`, `#finish`, `#daily` (đã 5 sao: nhiệm vụ ngày, món của ngày, Night Shift), `#giftrare`, `#giftfox` (quà ngày 3, ngày 7), `#giftpause` (nhận ngày 5 cách đây 3 ngày: hôm nay là ngày 6); `#reset` xoá save thử |
+| `tools/make_sfx.py`, `tools/make_music.py` | Tạo tiếng hiệu ứng và nhạc nền (vòng lặp liền, `music.ogg` cho Chrome/Firefox/Android, `music.mp3` cho Safari) bằng code: `python3 tools/make_music.py public/audio` (cần numpy, scipy, ffmpeg) |
 | `tools/sim/` | Mô phỏng kinh tế: `npm run sim` (200 lượt mỗi kiểu người chơi), `npm run sim:quick -- 1000 active none` (một lượt chi tiết theo phút), `npm run sim:pacing` (nhịp theo phút: số lần chạm, đưa món, mua, nhiệm vụ, thứ mới, thời gian không có việc; 3 kiểu người chơi × không quảng cáo / Poki / xem mọi quảng cáo; thêm `--json out.json` để xuất số liệu), `npm run sim:daily` (7 ngày sau 5 sao: mỗi ngày vắng 20 giờ rồi chơi 12 phút; nhiệm vụ ngày xong lúc nào, thu nhập khi vắng, quà 7 ngày; `--session 12 --away 20`) |
 
 ## Cài đặt
@@ -59,7 +63,7 @@ Tham số URL để thử (thêm vào cuối link, ví dụ `?debug&fps=144`):
 | `?ads=none` | Không có SDK quảng cáo, nút quảng cáo tự ẩn |
 | `?ads=basic` | Giả lập Basic Launch của CrazyGames: quảng cáo tắt, nút thưởng vẫn cho thưởng |
 | `?muteAudio=true` | Portal ép tắt tiếng, nút âm thanh bị khoá |
-| `?lang=ru` | Ép ngôn ngữ |
+| `?lang=de` | Ép ngôn ngữ (en, fr, it, de, es, tr) |
 
 ## Cấu trúc
 

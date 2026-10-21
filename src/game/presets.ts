@@ -17,7 +17,8 @@ function build(steps: (cafe: Cafe) => void) {
   s.vipOn = true;
   save.data.run = s;
   save.data.tutorial = [...ALL_TUTORIAL];
-  save.data.daily = { lastClaim: new Date().toISOString().slice(0, 10), streak: 1 };
+  // Today's gift already taken (the player's own date, as the game counts days).
+  save.data.daily = { lastClaim: dayKey(), streak: 1 };
 }
 
 const levels = (cafe: Cafe, id: string, n: number) => {

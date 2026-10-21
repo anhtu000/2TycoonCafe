@@ -65,9 +65,11 @@ export function openDaily(
   onGift?: (gifts: AdoptResult[], cafe: Cafe) => void,
 ): Panel {
   const days = content.cafe.daily;
+  // Tiles use short names (daily.fox, daily.rarePal): full animal names are too long for a tile in some languages.
+  const fox = (id: string) => id === 'snowfox';
   const views = days.map((d) =>
     d.animal
-      ? { label: app.t(`animal.${d.animal}`), icon: d.animal === 'snowfox' ? foxIcon : pawIcon, iconColor: 0xeaf4ff }
+      ? { label: fox(d.animal) ? app.t('daily.fox') : app.t(`animal.${d.animal}`), icon: fox(d.animal) ? foxIcon : pawIcon, iconColor: 0xeaf4ff }
       : d.rarePal
         ? { label: app.t('daily.rarePal'), icon: pawIcon, iconColor: RARITY_HEX[1] }
         : d.ticket

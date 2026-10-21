@@ -212,6 +212,17 @@ export const foxIcon: GlyphDraw = (g, size, color) => {
   g.fillEllipse(0, s * 0.56, s * 0.24, s * 0.16);
 };
 
+/** Language: a globe. */
+export const globeIcon: GlyphDraw = (g, size, color) => {
+  const s = size / 2;
+  g.lineStyle(s * 0.14, color, 1);
+  g.strokeCircle(0, 0, s * 0.82);
+  g.strokeEllipse(0, 0, s * 0.8, s * 1.64);
+  g.lineBetween(-s * 0.82, 0, s * 0.82, 0);
+  g.lineBetween(-s * 0.7, -s * 0.42, s * 0.7, -s * 0.42);
+  g.lineBetween(-s * 0.7, s * 0.42, s * 0.7, s * 0.42);
+};
+
 /** Icons of the cafe-wide upgrades. */
 export const UPGRADE_ICONS: Record<string, GlyphDraw> = {
   smile: (g, size, c) => {
