@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
-import { app, dailyDayIndex, dailyStatus, formatNumber, Panel, showDailyPanel, toast } from '@core';
+import { app, dailyDayIndex, dailyStatus, dayKey, formatNumber, Panel, showDailyPanel, toast, type DailyState } from '@core';
 import { Cafe, newRunState, type AdoptResult } from '../logic/cafe.ts';
+import { pausedStreak } from '../logic/daily.ts';
 import { decorTipMult } from '../logic/decor.ts';
 import { coinIcon, COIN_COLOR, foxIcon, pawIcon } from '../render/icons';
 import { RARITY_HEX } from '../render/textures';
@@ -31,8 +32,16 @@ export function noteAnimal(id: string, level: number) {
   save.data.book[id] = Math.max(save.data.book[id] ?? 0, level);
 }
 
+/**
+ * The 7-day gift state as core reads it. In this game a missed day pauses the streak instead of sending it
+ * back to day 1 (CLAUDE.md 5a); core keeps the shared rule for game #1.
+ */
+export function dailyState(): DailyState {
+  return pausedStreak(save.data.daily, dayKey());
+}
+
 export function dailyClaimable(): boolean {
-  return dailyStatus(save.data.daily).canClaim;
+  return dailyStatus(dailyState()).canClaim;
 }
 
 let dailyOffered = false;
@@ -66,7 +75,7 @@ export function openDaily(
           : { label: app.t('daily.coins', { n: d.coinsMin ?? 0 }), icon: coinIcon, iconColor: COIN_COLOR },
   );
   return showDailyPanel(scene, {
-    state: save.data.daily,
+    state: dailyState(),
     rewards: views,
     adMultiplier: content.cafe.rewarded.dailyMult,
     onClaim: (i, mult, next) => {
@@ -100,7 +109,7 @@ export function openDaily(
 }
 
 export function dailyToday() {
-  return dailyDayIndex(save.data.daily, content.cafe.daily.length);
+  return dailyDayIndex(dailyState(), content.cafe.daily.length);
 }
 
 /**

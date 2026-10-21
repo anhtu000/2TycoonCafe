@@ -1,5 +1,6 @@
 // Prepared states for testing on a phone or in the bot (web build only): #staff, #dessert, #finish,
-// #daily (five stars: daily orders, today's special, Night Shift), #giftrare and #giftfox (the 7-day gift on day 3 or 7).
+// #daily (five stars: daily orders, today's special, Night Shift), #giftrare and #giftfox (the 7-day gift on day 3 or 7),
+// #giftpause (day 5 claimed three days ago: the streak waits, today is day 6).
 // Each preset saves under its own key (save.ts), so real progress is never touched.
 import { app, dayKey } from '@core';
 import { Cafe, newRunState } from '../logic/cafe.ts';
@@ -94,11 +95,15 @@ export const PRESETS: Record<string, () => void> = {
     PRESETS.daily();
     gift(7);
   },
+  giftpause: () => {
+    PRESETS.staff();
+    gift(6, 3);
+  },
 };
 
-/** Yesterday was day n - 1 of the streak, so today's gift is day n. */
-function gift(n: number) {
+/** Day n - 1 of the streak was claimed `daysAgo` days ago (1: yesterday), so today's gift is day n. */
+function gift(n: number, daysAgo = 1) {
   const y = new Date();
-  y.setDate(y.getDate() - 1);
+  y.setDate(y.getDate() - daysAgo);
   save.data.daily = { lastClaim: dayKey(y), streak: n - 1 };
 }
