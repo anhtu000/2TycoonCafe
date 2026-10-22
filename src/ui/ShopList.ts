@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
-import { app, drawId, formatCountdown, formatNumber, icons, punch, rewardButton, setShape, toast, type Button } from '@core';
+import { app, drawId, formatCountdown, formatNumber, icons, punch, rewardButton, setShape, type Button } from '@core';
 import { COIN_COLOR, coinIcon, type GlyphDraw } from '../render/icons';
+import { notice } from './notice';
 
 /**
  * A rewarded boost, shown as the first card of the shop. Rewarded-ad buttons stay out of the cafe itself
@@ -349,7 +350,7 @@ export class ShopList {
       punch(this.scene, card.box, 0.08);
     } else {
       const message = app.ads.failureMessage((k) => app.t(k));
-      if (message) toast(this.scene, message);
+      if (message) notice(this.scene, message);
     }
     this.refresh(true);
   }

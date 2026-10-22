@@ -1,5 +1,6 @@
 import { startGame } from '@core';
 import game from './game.json';
+import { blockPageScroll } from './game/page';
 import de from './i18n/de.json';
 import en from './i18n/en.json';
 import es from './i18n/es.json';
@@ -9,6 +10,9 @@ import tr from './i18n/tr.json';
 import { save } from './save';
 import { HomeScene } from './scenes/HomeScene';
 import { PlayScene } from './scenes/PlayScene';
+
+// Before anything else: keys must not scroll the portal page, even while the game loads.
+blockPageScroll();
 
 // Poki: the game speaks the language of the Poki site the player is on (Poki guide 5.3, PokiSDK.getLanguage).
 // Core asks the browser (navigator.language); here that answer comes from the SDK when it has one,

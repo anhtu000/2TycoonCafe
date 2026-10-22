@@ -1,10 +1,12 @@
 import Phaser from 'phaser';
-import { app, Button, burst, formatClock, formatNumber, Panel, rewardButton, setShape, toast, type icons } from '@core';
+import { app, Button, burst, formatClock, formatNumber, Panel, rewardButton, setShape, type icons } from '@core';
 import type { AdoptResult, Cafe } from '../logic/cafe.ts';
 import { decorContent, content } from '../game/content';
 import { coinIcon, starIcon } from '../render/icons';
 import { ANIMAL_ASPECT, animalTexture, decorTexture, RARITY_CSS, RARITY_HEX, silhouetteTexture } from '../render/textures';
+import { measure } from '../game/measure';
 import { save, type RunRecord } from '../save';
+import { notice } from './notice';
 
 // Modal windows of the game: adoption reveal, staff book, menu, decor, records, finish.
 
@@ -188,8 +190,9 @@ export function showDecor(scene: Phaser.Scene, cafe: Cafe, onChange: () => void,
   const give = (id: string) => {
     save.data.decor.push(id);
     save.flush();
+    measure('decor', id, 'buy');
     const it = items.find((i) => i.id === id)!;
-    toast(scene, `${app.t(`decor.${id}`)}: ${app.t(`floor.${it.floor}`)}`);
+    notice(scene, `${app.t(`decor.${id}`)}: ${app.t(`floor.${it.floor}`)}`);
     onChange();
     refresh();
   };

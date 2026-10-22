@@ -16,7 +16,6 @@ import {
   secondsAway,
   setShape,
   showOfflinePanel,
-  toast,
   Tutorial,
   type TutorialStep,
   type ViewportInfo,
@@ -27,11 +26,13 @@ import { Cafe, newRunState, type AdoptResult, type CafeEvent, type OrderState } 
 import { decorTipMult } from '../logic/decor.ts';
 import { boltIcon, bookIcon, coinIcon, COIN_COLOR, globeIcon, menuIcon, pawIcon, plantIcon, seatIcon, starIcon, starSlotIcon, stopwatchIcon, trophyIcon, UPGRADE_ICONS } from '../render/icons';
 import { animalTexture, itemTexture } from '../render/textures';
+import { measure } from '../game/measure';
 import { startMusic } from '../game/music';
 import { save } from '../save';
 import { Floor } from '../ui/Floor';
 import { showAdoptReveal, showDecor, showFinish, showGameMenu, showRecords, showStaffBook } from '../ui/panels';
 import { BOOST_CARD, ShopList, type Boost, type ShopEntry } from '../ui/ShopList';
+import { notice } from '../ui/notice';
 import { TaskBar, type TaskView } from '../ui/TaskBar';
 import type { TaskDef } from '../logic/content.ts';
 
@@ -82,6 +83,8 @@ export class PlayScene extends BaseScene {
   private barKey = '';
   /** The five-star moment is on screen: news of the first day waits for it. */
   private finishing = false;
+  /** A queued window opens in a moment (150 ms after the last one closed): news waits for it too. */
+  private panelDue = false;
 
   constructor() {
     // gameplayStart goes out at the first tap, not when loading ends (Poki guide 5.1).
@@ -92,6 +95,7 @@ export class PlayScene extends BaseScene {
     this.floors = [];
     this.stars = [];
     this.queue = [];
+    this.panelDue = false;
     this.panel = null;
     this.leaving = false;
     if (save.data.mode === 'timed' && !save.data.timed) save.data.mode = 'main';
@@ -154,7 +158,10 @@ export class PlayScene extends BaseScene {
 
     this.tut = new Tutorial(this, {
       onStepDone: (id) => {
-        if (!save.data.tutorial.includes(id)) save.data.tutorial.push(id);
+        if (!save.data.tutorial.includes(id)) {
+          save.data.tutorial.push(id);
+          measure('tutorial', id, 'complete');
+        }
         save.flush();
       },
     });
@@ -253,8 +260,11 @@ export class PlayScene extends BaseScene {
 
   update(_time: number, delta: number) {
     // The cafe waits while a window is open: customers should not walk out while the player reads.
-    if (!this.panel) this.tick.update(delta);
-    for (const f of this.floors) f.sync(this.panel ? 0 : delta);
+    // It also waits from the moment an ad is asked for (Poki: gameplayStop came first), not only once it
+    // plays: found 22/10, a star reached in the frames before a break started was celebrated under the ad.
+    const frozen = !!this.panel || app.ads.isShowing;
+    if (!frozen) this.tick.update(delta);
+    for (const f of this.floors) f.sync(frozen ? 0 : delta);
     // Midnight while playing: new orders and a new special without a reload.
     this.dayTimer -= delta;
     if (this.dayTimer <= 0) {
@@ -292,7 +302,7 @@ export class PlayScene extends BaseScene {
           }
           if (e.vipBonus > 0) {
             if (top) burst(this, top.x, top.y + 20, 0xffd34d, 24, 520);
-            toast(this, app.t('toast.vip', { n: formatNumber(e.vipBonus) }));
+            notice(this, app.t('toast.vip', { n: formatNumber(e.vipBonus) }));
             app.audio.play('reward');
             app.moments.emit('rarePull', { tier: 3, odds: 0, label: 'vip' });
           } else {
@@ -329,7 +339,7 @@ export class PlayScene extends BaseScene {
             burst(this, top.x, top.y + 20, 0xffd34d, 20, 380);
             floatText(this, top.x, top.y - 20, `x${e.mult}!`, { color: '#ffd34d', size: 44, rise: 70 });
           }
-          toast(this, app.t('toast.milestone', { item: app.t(`item.${e.item}`), n: e.mult, l: e.level }));
+          notice(this, app.t('toast.milestone', { item: app.t(`item.${e.item}`), n: e.mult, l: e.level }));
           app.audio.play('reward', { volume: 0.7 });
           break;
         }
@@ -374,21 +384,23 @@ export class PlayScene extends BaseScene {
 
   private openFloor(n: number) {
     if (!this.cafe.openFloor(n)) return;
+    if (this.cafe.s.mode === 'main') measure('floor', content.cafe.floors[n].id, 'complete');
     const name = app.t(`floor.${content.cafe.floors[n].id}`);
     app.audio.play('reward');
     const b = this.floors[n].bounds();
     burst(this, b.x + b.w / 2, b.y + b.h / 2, 0xffd34d, 40, 640);
-    toast(this, app.t('toast.floorOpen', { floor: name }));
+    notice(this, app.t('toast.floorOpen', { floor: name }));
     app.moments.emit('collectionNew', { id: `floor.${content.cafe.floors[n].id}` });
     this.refreshStars();
   }
 
   private unlockItem(item: string) {
     if (!this.cafe.unlockItem(item)) return;
+    if (this.cafe.s.mode === 'main') measure('item', item, 'complete');
     app.audio.play('reward');
     const top = this.floors[this.cafe.floorIndexOf(item)].machineTop(item);
     if (top) burst(this, top.x, top.y + 30, 0xffd34d, 24, 420);
-    toast(this, app.t('toast.itemNew', { item: app.t(`item.${item}`) }));
+    notice(this, app.t('toast.itemNew', { item: app.t(`item.${item}`) }));
     this.shop.refresh(true);
   }
 
@@ -559,6 +571,7 @@ export class PlayScene extends BaseScene {
     if (!r) return;
     noteAnimal(r.animal.id, r.level);
     save.flush();
+    measure('helper', r.animal.id, r.isNew ? 'new' : 'levelup');
     if (r.rarity >= 2) app.moments.emit('rarePull', { tier: r.rarity, odds: cafe.adoptOdds()[r.rarity], label: r.animal.id });
     this.tut.complete('adopt');
     this.showPanel(() => showAdoptReveal(this, cafe, r!, () => this.panelClosed()));
@@ -568,13 +581,14 @@ export class PlayScene extends BaseScene {
   // ---------- stars and finish ----------
 
   private onStar(stars: number) {
+    measure(this.cafe.s.mode === 'main' ? 'star' : 'timed-star', stars, 'complete');
     this.refreshStars();
     const img = this.stars[stars - 1];
     if (img) {
       burst(this, img.x, img.y, 0xffd34d, 26, 420);
       punch(this, img, 0.6, 300);
     }
-    if (stars < content.cafe.goals.length) toast(this, `${app.t('star.got')}  ${app.t('star.next', { goal: this.goalText(stars) })}`, 3200);
+    if (stars < content.cafe.goals.length) notice(this, `${app.t('star.got')}  ${app.t('star.next', { goal: this.goalText(stars) })}`, 3200);
     app.audio.play('reward');
     app.platform.happyTime();
   }
@@ -589,8 +603,12 @@ export class PlayScene extends BaseScene {
     let rank: number | null = null;
     const first = cafe.s.mode === 'main' && save.data.firstFinishMs === 0;
     if (cafe.s.mode === 'main') {
-      if (first) save.data.firstFinishMs = ms;
+      if (first) {
+        save.data.firstFinishMs = ms;
+        measure('finish', 'main', 'complete');
+      }
     } else {
+      measure('timed', 'run', 'complete');
       const best = Object.keys(cafe.s.staff).reduce((m, id) => Math.max(m, cafe.rarityIndex(cafe.animal(id))), 0);
       const rec = { ms, best, day: new Date().toISOString().slice(0, 10) };
       const list = [...save.data.records, rec].sort((a, b) => a.ms - b.ms).slice(0, 5);
@@ -788,10 +806,12 @@ export class PlayScene extends BaseScene {
       const o = cafe.orders()[pick.index];
       const r = cafe.claimOrder(pick.index);
       if (r) {
+        measure('order', o.type, 'complete');
         if (r.bonus > 0) {
+          measure('orders', 'day', 'complete');
           // Every order of the day: free adoptions, waiting on the shop's adoption card.
           save.data.tickets += r.bonus;
-          toast(this, app.t('toast.ordersDone'), 3200);
+          notice(this, app.t('toast.ordersDone'), 3200);
         }
         this.celebrateClaim(r.coins);
         return;
@@ -804,6 +824,7 @@ export class PlayScene extends BaseScene {
     }
     const t = pick.task;
     if (cafe.taskDone(t)) {
+      measure('task', t.id, 'complete');
       this.celebrateClaim(cafe.claimTask());
       return;
     }
@@ -847,8 +868,14 @@ export class PlayScene extends BaseScene {
   private panelClosed() {
     this.panel = null;
     const next = this.queue.shift();
-    if (next) this.time.delayedCall(150, () => this.showPanel(next));
-    else this.time.delayedCall(0, () => this.resumePlay());
+    if (next) {
+      // Found 22/10: in this gap the day's news slipped out under the Snow Fox reveal.
+      this.panelDue = true;
+      this.time.delayedCall(150, () => {
+        this.panelDue = false;
+        this.showPanel(next);
+      });
+    } else this.time.delayedCall(0, () => this.resumePlay());
     this.shop.refresh(true);
   }
 
@@ -915,6 +942,7 @@ export class PlayScene extends BaseScene {
       label: lang === current ? `${app.i18n.nameOf(lang)}  ✓` : app.i18n.nameOf(lang),
       onClick: () => {
         if (lang === current) return;
+        measure('language', lang, 'select');
         this.leaving = true;
         this.stopPlay();
         save.flush();
@@ -945,6 +973,7 @@ export class PlayScene extends BaseScene {
     if (this.cafe.s.mode === 'main') save.data.mainLeftAt = Date.now();
     save.data.timed = newRunState(content, 'timed', app.rng.int(1, 2 ** 31 - 1));
     save.data.mode = 'timed';
+    measure('timed', 'run', 'start');
     save.flush();
     void breakAd('navigation').then(() => this.scene.restart());
   }
@@ -1048,8 +1077,8 @@ export class PlayScene extends BaseScene {
   private checkTriggers() {
     if (this.panel || this.tut.active || this.cafe.s.mode !== 'main' || !this.done('serve')) return;
     // Not between two queued windows either (the toast would sit on the next one's button).
-    if (this.dayNews && !this.finishing && this.queue.length === 0) {
-      toast(this, this.dayNews, 3600);
+    if (this.dayNews && !this.finishing && !this.panelDue && this.queue.length === 0) {
+      notice(this, this.dayNews, 3600);
       this.dayNews = null;
     }
     const cafe = this.cafe;

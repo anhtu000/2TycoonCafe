@@ -1,11 +1,13 @@
 import Phaser from 'phaser';
-import { app, dailyDayIndex, dailyStatus, dayKey, formatNumber, Panel, showDailyPanel, toast, type DailyState } from '@core';
+import { app, dailyDayIndex, dailyStatus, dayKey, formatNumber, Panel, showDailyPanel, type DailyState } from '@core';
 import { Cafe, newRunState, type AdoptResult } from '../logic/cafe.ts';
 import { pausedStreak } from '../logic/daily.ts';
 import { decorTipMult } from '../logic/decor.ts';
 import { coinIcon, COIN_COLOR, foxIcon, pawIcon } from '../render/icons';
 import { RARITY_HEX } from '../render/textures';
 import { preset, save } from '../save';
+import { notice } from '../ui/notice';
+import { measure } from './measure';
 import { PRESETS } from './presets';
 
 /**
@@ -82,6 +84,7 @@ export function openDaily(
     adMultiplier: content.cafe.rewarded.dailyMult,
     onClaim: (i, mult, next) => {
       save.data.daily = next;
+      measure('daily', i + 1, mult > 1 ? 'claim-x2' : 'claim');
       const d = days[i];
       const parts: string[] = [];
       if (d.ticket) {
@@ -102,7 +105,7 @@ export function openDaily(
       const last = gifts[gifts.length - 1];
       if (last) parts.push(last.isNew || gifts.length > 1 ? app.t('toast.gift', { name: app.t(`animal.${last.animal.id}`) }) : app.t('toast.giftLevel', { name: app.t(`animal.${last.animal.id}`), n: last.level }));
       save.flush();
-      if (parts.length) toast(scene, parts.join('  '));
+      if (parts.length) notice(scene, parts.join('  '));
       onClaimed?.();
       if (gifts.length) onGift?.(gifts, cafe);
     },
