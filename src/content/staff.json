@@ -1,0 +1,114 @@
+{
+  "rarities": [
+    {
+      "id": "common",
+      "weight": 62,
+      "speed": 0.8,
+      "color": "#b9c2cc"
+    },
+    {
+      "id": "rare",
+      "weight": 28,
+      "speed": 1.05,
+      "color": "#4fa8ff"
+    },
+    {
+      "id": "epic",
+      "weight": 8.5,
+      "speed": 1.35,
+      "color": "#b56cff"
+    },
+    {
+      "id": "legendary",
+      "weight": 1.5,
+      "speed": 1.75,
+      "color": "#ffb627"
+    }
+  ],
+  "pity": [
+    {
+      "minTier": 2,
+      "within": 12
+    },
+    {
+      "minTier": 3,
+      "within": 50
+    }
+  ],
+  "levelBonus": 0.15,
+  "maxLevel": 5,
+  "adopt": {
+    "cost": 3500,
+    "growth": 2.6,
+    "firstGuided": "capybara"
+  },
+  "animals": [
+    {
+      "id": "capybara",
+      "rarity": "common",
+      "perk": "speed",
+      "perkValue": 1.1
+    },
+    {
+      "id": "hamster",
+      "rarity": "common",
+      "perk": "speed",
+      "perkValue": 1.15
+    },
+    {
+      "id": "bunny",
+      "rarity": "common",
+      "perk": "tips",
+      "perkValue": 1.1
+    },
+    {
+      "id": "cat",
+      "rarity": "common",
+      "perk": "tips",
+      "perkValue": 1.15
+    },
+    {
+      "id": "shiba",
+      "rarity": "rare",
+      "perk": "speed",
+      "perkValue": 1.15
+    },
+    {
+      "id": "penguin",
+      "rarity": "rare",
+      "perk": "tips",
+      "perkValue": 1.2
+    },
+    {
+      "id": "koala",
+      "rarity": "rare",
+      "perk": "speed",
+      "perkValue": 1.1
+    },
+    {
+      "id": "redpanda",
+      "rarity": "epic",
+      "perk": "speed",
+      "perkValue": 1.2
+    },
+    {
+      "id": "panda",
+      "rarity": "epic",
+      "perk": "tips",
+      "perkValue": 1.25
+    },
+    {
+      "id": "axolotl",
+      "rarity": "legendary",
+      "perk": "tips",
+      "perkValue": 1.3
+    },
+    {
+      "id": "snowfox",
+      "rarity": "legendary",
+      "perk": "speed",
+      "perkValue": 1.25,
+      "exclusive": "daily"
+    }
+  ]
+}

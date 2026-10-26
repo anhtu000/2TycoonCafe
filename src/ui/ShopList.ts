@@ -1,0 +1,610 @@
+import Phaser from 'phaser';
+import { app, drawId, formatCountdown, formatNumber, icons, punch, rewardButton, setShape, type Button } from '@core';
+import { COIN_COLOR, coinIcon, type GlyphDraw } from '../render/icons';
+import { notice } from './notice';
+
+/**
+ * A rewarded boost, shown as the first card of the shop. Rewarded-ad buttons stay out of the cafe itself
+ * (CrazyGames rule, kept for path B), so Rush Hour and the free adoption live here (CLAUDE.md 4.5, 5a).
+ */
+export interface Boost {
+  /** Which boost. */
+  id: string;
+  name: string;
+  desc: string;
+  icon: GlyphDraw;
+  /** Seconds until it can be used; 0 = ready. While waiting the card shows a countdown. */
+  wait: number;
+  /** Ready, but cannot be used right now: this short reason replaces the price line (for example "Board full"). */
+  blocked?: string;
+  /** A pulsing glow around the card: a suggestion, not a tutorial step (the copy offer, user 13/10). */
+  highlight?: boolean;
+  onReward: () => void;
+}
+
+/** One card of the shop: an item level, an upgrade, a seat, the adoption. Read again on every refresh. */
+export interface ShopEntry {
+  id: string;
+  name: string;
+  desc: string;
+  /** Glyph icon, or a texture key (menu items, animals) shown as a picture. */
+  icon: GlyphDraw | string;
+  /** "Lv 12", "MAX", or empty. */
+  level: string;
+  /** Price, or null when maxed. */
+  cost: number | null;
+  affordable: boolean;
+  onBuy: () => void;
+}
+
+export interface ShopListOptions {
+  /** Cards in their fixed order. */
+  entries: () => ShopEntry[];
+  /** Rewarded "free upgrade" for one card (its id), or null. */
+  freeTarget?: () => string | null;
+  onFree?: (id: string) => void;
+  freeCooldown?: () => number;
+  /** The boost to show first, or null for none. Read on every refresh. */
+  boost?: () => Boost | null;
+}
+
+interface Card {
+  id: string;
+  box: Phaser.GameObjects.Container;
+  // Baked shapes shown as images (cheap to draw on phones), not live Graphics.
+  bg: Phaser.GameObjects.Image;
+  icon: Phaser.GameObjects.Image;
+  name: Phaser.GameObjects.Text;
+  desc: Phaser.GameObjects.Text;
+  cost: Phaser.GameObjects.Text;
+  coin: Phaser.GameObjects.Image;
+  level: Phaser.GameObjects.Text;
+  state: string;
+  /** Size and orientation the parts were last laid out for (font changes re-measure text: slow on phones). */
+  layout: string;
+  /** Description text and layout the description font was last fitted for. */
+  descFit: string;
+}
+
+/** Id of the boost card in the list. Not an upgrade id. */
+export const BOOST_CARD = '__boost';
+
+const REWARD_TEXT = '#d9c8ff';
+
+/** Press id of the "more" arrow (not a card). */
+const MORE = '__more';
+
+/** Round badge with a chevron pointing right; the column turns it to point down. */
+function drawMore(g: Phaser.GameObjects.Graphics, r: number, color: number) {
+  g.fillStyle(0x2a1d17, 0.92);
+  g.fillCircle(0, 0, r);
+  g.lineStyle(2.5, color, 0.95);
+  g.strokeCircle(0, 0, r);
+  const a = r * 0.34;
+  g.lineStyle(4, color, 1);
+  g.beginPath();
+  g.moveTo(-a * 0.6, -a * 1.25);
+  g.lineTo(a * 0.75, 0);
+  g.lineTo(-a * 0.6, a * 1.25);
+  g.strokePath();
+}
+
+/**
+ * The shop, always on screen and never over the board (CLAUDE.md 4.2):
+ * a horizontal strip under the board on phones, a column on the right on desktop.
+ * Cards scroll with a drag or the mouse wheel. Order is fixed, so a card stays put when bought;
+ * the rewarded boost, when there is one, comes first. While cards are out of view past the end, a
+ * small arrow there says so (players did not notice the list goes on); tapping it scrolls a screenful.
+ */
+export class ShopList {
+  private scene: Phaser.Scene;
+  private opts: ShopListOptions;
+  private entries = new Map<string, ShopEntry>();
+  private cards = new Map<string, Card>();
+  /** Entry ids shown, in order. */
+  private order: string[] = [];
+  /** What is shown, in order: the boost card (if any), then the upgrades. */
+  private list: string[] = [];
+  private boost: Boost | null = null;
+  private boostBusy = false;
+  private zone: Phaser.GameObjects.Zone;
+  private free: Button;
+  private freeId: string | null = null;
+  private horizontal = true;
+  private area = { x: 0, y: 0, w: 0, h: 0 };
+  private cardW = 210;
+  private cardH = 150;
+  private gap = 14;
+  private scroll = 0;
+  private velocity = 0;
+  private dragStart: { pos: number; scroll: number } | null = null;
+  /** True while the finger is scrolling, so the card under it does not get bought. */
+  private scrolled = false;
+  /** Scroll position an arrow tap glides to. */
+  private glide: number | null = null;
+  /** "More cards this way" arrow at the end of the list, and its (larger) tap area. */
+  private more: Phaser.GameObjects.Image;
+  private moreZone: Phaser.GameObjects.Zone;
+  /** Look the arrow was last baked for (cleared on layout so a new screen scale rebakes it). */
+  private moreLook = '';
+  /** Glow around the boost card while its boost asks for attention (Boost.highlight). */
+  private glow: Phaser.GameObjects.Image;
+  private glowLook = '';
+
+  constructor(scene: Phaser.Scene, options: ShopListOptions) {
+    this.scene = scene;
+    this.opts = options;
+    // Drag-to-scroll area, behind the cards.
+    this.zone = scene.add.zone(0, 0, 10, 10).setOrigin(0).setDepth(19).setInteractive();
+    this.zone.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      this.startDrag(p);
+      this.downOn = null;
+    });
+    scene.input.on('pointermove', (p: Phaser.Input.Pointer) => this.moveDrag(p));
+    scene.input.on('pointerup', () => this.endDrag());
+    scene.input.on('wheel', (p: Phaser.Input.Pointer, _over: unknown, dx: number, dy: number) => this.wheel(p, dx, dy));
+    this.free = rewardButton(scene, 0, 0, {
+      label: app.t('shop.free'),
+      width: 150,
+      height: 64,
+      fontSize: 26,
+      cooldown: options.freeCooldown ?? (() => 0),
+      onReward: () => {
+        if (this.freeId) options.onFree?.(this.freeId);
+      },
+    });
+    this.free.setDepth(25);
+    this.more = scene.add.image(0, 0, '__DEFAULT').setDepth(22).setVisible(false);
+    this.glow = scene.add.image(0, 0, '__DEFAULT').setDepth(19.5).setVisible(false).setBlendMode(Phaser.BlendModes.ADD);
+    this.moreZone = scene.add.zone(0, 0, 10, 10).setDepth(23).setInteractive({ useHandCursor: true });
+    this.moreZone.input!.enabled = false;
+    // A drag that starts on the arrow still scrolls; a tap pages on.
+    this.moreZone.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      this.startDrag(p);
+      this.downOn = MORE;
+    });
+    this.moreZone.on('pointerup', () => {
+      if (!this.scrolled && this.downOn === MORE) this.page();
+    });
+    scene.events.on(Phaser.Scenes.Events.UPDATE, this.tick, this);
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.events.off(Phaser.Scenes.Events.UPDATE, this.tick, this));
+  }
+
+  /** Strip (horizontal) or column, inside this rectangle (top-left x, y). */
+  layout(x: number, y: number, w: number, h: number, horizontal: boolean) {
+    this.horizontal = horizontal;
+    if (horizontal) {
+      this.cardH = h;
+      this.cardW = Math.min(230, Math.max(190, w / 3.3));
+    } else {
+      this.cardW = w;
+      this.cardH = 116;
+      // The column ends on a card edge, so at rest it shows whole cards only.
+      const n = Math.max(1, Math.floor((h - this.gap) / (this.cardH + this.gap)));
+      h = n * (this.cardH + this.gap) + this.gap;
+    }
+    this.area = { x, y, w, h };
+    this.zone.setPosition(x, y).setSize(w, h);
+    (this.zone.input!.hitArea as Phaser.Geom.Rectangle).setSize(w, h);
+    // Strip: a finger-sized area at the right edge. Column: a band across the bottom edge.
+    const [mw, mh] = horizontal ? [56, 76] : [80, 44];
+    this.moreZone.setSize(mw, mh);
+    (this.moreZone.input!.hitArea as Phaser.Geom.Rectangle).setSize(mw, mh);
+    this.moreLook = '';
+    this.glowLook = '';
+    this.refresh(true);
+  }
+
+  /** Card rectangle for tutorial targets (an upgrade id or BOOST_CARD), or null if the card is not shown. */
+  cardRect(id: string) {
+    const card = this.cards.get(id);
+    if (!card || !card.box.visible || !this.list.includes(id)) return null;
+    return { x: card.box.x, y: card.box.y, w: this.cardW, h: this.cardH };
+  }
+
+  /** Scrolls so this card is in view. */
+  reveal(id: string) {
+    const i = this.list.indexOf(id);
+    if (i < 0) return;
+    this.glide = null;
+    this.scroll = Phaser.Math.Clamp(i * (this.span + this.gap) - this.gap, 0, this.maxScroll());
+  }
+
+  /** Scrolls to a card and makes it bounce: "this one" (task hints). */
+  pulse(id: string) {
+    const card = this.cards.get(id);
+    if (!card || !this.list.includes(id)) return false;
+    this.reveal(id);
+    this.scene.time.delayedCall(60, () => {
+      punch(this.scene, card.box, 0.12, 320);
+      this.scene.time.delayedCall(360, () => punch(this.scene, card.box, 0.08, 260));
+    });
+    return true;
+  }
+
+  /** Arrow tap: on by a screenful, keeping the last card that was in view as context. */
+  private page() {
+    const step = this.span + this.gap;
+    const shown = Math.max(1, Math.floor((this.length - this.gap) / step));
+    const from = Math.round((this.glide ?? this.scroll) / step) * step;
+    this.velocity = 0;
+    this.glide = Phaser.Math.Clamp(from + Math.max(1, shown - 1) * step, 0, this.maxScroll());
+  }
+
+  /** The boost on show, if any. */
+  get currentBoost(): Boost | null {
+    return this.boost;
+  }
+
+  private get span() {
+    return this.horizontal ? this.cardW : this.cardH;
+  }
+
+  private get length() {
+    return this.horizontal ? this.area.w : this.area.h;
+  }
+
+  private maxScroll() {
+    const content = this.list.length * (this.span + this.gap) - this.gap;
+    return Math.max(0, content - this.length + this.gap * 2);
+  }
+
+  private startDrag(p: Phaser.Input.Pointer) {
+    this.dragStart = { pos: this.horizontal ? p.worldX : p.worldY, scroll: this.scroll };
+    this.scrolled = false;
+    this.velocity = 0;
+    this.glide = null;
+  }
+
+  private moveDrag(p: Phaser.Input.Pointer) {
+    if (!this.dragStart || !p.isDown) return;
+    // World coordinates are design units (x/y are screen pixels), so the list follows the finger 1:1.
+    const pos = this.horizontal ? p.worldX : p.worldY;
+    const units = this.dragStart.pos - pos;
+    if (Math.abs(units) > 12) this.scrolled = true;
+    if (this.scrolled) {
+      const next = Phaser.Math.Clamp(this.dragStart.scroll + units, -40, this.maxScroll() + 40);
+      this.velocity = next - this.scroll;
+      this.scroll = next;
+    }
+  }
+
+  private endDrag() {
+    this.dragStart = null;
+    // Let the click handler of a card see `scrolled` first.
+    this.scene.time.delayedCall(0, () => {
+      this.scrolled = false;
+      this.downOn = null;
+    });
+  }
+
+  /** Card the current press started on: a tap buys only when it is pressed and released on the same card. */
+  private downOn: string | null = null;
+
+  /** Mouse wheel over the shop scrolls it (desktop). */
+  private wheel(p: Phaser.Input.Pointer, dx: number, dy: number) {
+    const { x, y, w, h } = this.area;
+    if (p.worldX < x || p.worldX > x + w || p.worldY < y || p.worldY > y + h) return;
+    // One card per notch, so the settle-on-card-edge below never undoes a small wheel step.
+    const delta = this.horizontal ? dx || dy : dy;
+    if (!delta) return;
+    const step = this.span + this.gap;
+    this.velocity = 0;
+    this.glide = null;
+    this.scroll = Phaser.Math.Clamp(this.scroll + Math.sign(delta) * step * Math.max(1, Math.round(Math.abs(delta) / 100)), 0, this.maxScroll());
+  }
+
+  private makeCard(id: string, label: string, onTap: (card: Card) => void): Card {
+    const s = this.scene;
+    const theme = app.theme;
+    const font = { fontFamily: theme.font, resolution: app.textResolution };
+    const bg = s.add.image(0, 0, '__DEFAULT');
+    const icon = s.add.image(0, 0, '__DEFAULT');
+    const name = s.add.text(0, 0, label, { ...font, fontStyle: '900', fontSize: 26, color: theme.text });
+    const desc = s.add.text(0, 0, '', { ...font, fontStyle: '700', fontSize: 22, color: theme.textDim });
+    const coin = s.add.image(0, 0, '__DEFAULT');
+    const cost = s.add.text(0, 0, '', { ...font, fontStyle: '900', fontSize: 28, color: '#ffd166' });
+    const level = s.add.text(0, 0, '', { ...font, fontStyle: '900', fontSize: 20, color: theme.textDim });
+    const box = s.add.container(0, 0, [bg, icon, name, desc, coin, cost, level]).setDepth(20);
+    box.setSize(this.cardW, this.cardH);
+    box.setInteractive({ useHandCursor: true });
+    const card: Card = { id, box, bg, icon, name, desc, cost, coin, level, state: '', layout: '', descFit: '' };
+    // A press on a card also starts a scroll, so the list can be dragged anywhere, not only in the gaps.
+    box.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      this.startDrag(p);
+      this.downOn = id;
+    });
+    box.on('pointerup', () => {
+      if (!this.scrolled && this.downOn === id) onTap(card);
+    });
+    this.cards.set(id, card);
+    return card;
+  }
+
+  private shake(card: Card) {
+    // Not available right now: a small shake says so without a popup.
+    this.scene.tweens.add({ targets: card.box, x: card.box.x + 8, duration: 50, yoyo: true, repeat: 2 });
+  }
+
+  private tapUpgrade(card: Card) {
+    const e = this.entries.get(card.id);
+    if (!e) return;
+    if (e.cost !== null && e.affordable) {
+      e.onBuy();
+      punch(this.scene, card.box, 0.08);
+      this.refresh();
+    } else if (e.cost !== null) {
+      this.shake(card);
+    }
+  }
+
+  private async tapBoost(card: Card) {
+    const boost = this.boost;
+    if (!boost || boost.wait > 0 || boost.blocked || this.boostBusy) return this.shake(card);
+    this.boostBusy = true;
+    const earned = await app.ads.rewarded();
+    this.boostBusy = false;
+    if (!card.box.active) return; // scene changed while the ad was showing
+    if (earned) {
+      boost.onReward();
+      punch(this.scene, card.box, 0.08);
+    } else {
+      const message = app.ads.failureMessage((k) => app.t(k));
+      if (message) notice(this.scene, message);
+    }
+    this.refresh(true);
+  }
+
+  /** Background, frame and positions of the parts. Shared by upgrade and boost cards. */
+  private frame(card: Card, fill: number, line: number, lineAlpha: number) {
+    const w = this.cardW;
+    const h = this.cardH;
+    setShape(card.bg, `card|${w}|${h}|${fill}|${line}|${lineAlpha}`, w, h, (g) => {
+      g.fillStyle(fill, 0.95);
+      g.fillRoundedRect(-w / 2, -h / 2, w, h, 20);
+      g.lineStyle(3, line, lineAlpha);
+      g.strokeRoundedRect(-w / 2, -h / 2, w, h, 20);
+    });
+    const layout = `${w}|${h}|${this.horizontal}`;
+    if (card.layout === layout) return;
+    card.layout = layout;
+    card.descFit = '';
+    card.box.setSize(w, h);
+    (card.box.input!.hitArea as Phaser.Geom.Rectangle).setTo(0, 0, w, h);
+    if (this.horizontal) {
+      // Icon top-left, level top-right; name, effect and price below.
+      card.icon.setPosition(-w / 2 + 34, -h / 2 + 34);
+      card.level.setOrigin(1, 0).setPosition(w / 2 - 14, -h / 2 + 12);
+      card.name.setOrigin(0, 0.5).setPosition(-w / 2 + 14, -h / 2 + 70).setFontSize(27);
+      card.desc.setOrigin(0, 0).setPosition(-w / 2 + 14, -h / 2 + 88).setFontSize(22);
+      card.desc.setWordWrapWidth(w - 28, true);
+      card.coin.setPosition(-w / 2 + 28, h / 2 - 24);
+      card.cost.setOrigin(0, 0.5).setPosition(-w / 2 + 48, h / 2 - 24).setFontSize(30);
+    } else {
+      card.icon.setPosition(-w / 2 + 44, 0);
+      card.level.setOrigin(1, 0).setPosition(w / 2 - 14, -h / 2 + 10);
+      card.name.setOrigin(0, 0.5).setPosition(-w / 2 + 86, -h / 2 + 30).setFontSize(26);
+      card.desc.setOrigin(0, 0.5).setPosition(-w / 2 + 86, 0).setFontSize(21);
+      // One line in the column: shrink instead of wrapping.
+      card.desc.setWordWrapWidth(null as unknown as number);
+      card.coin.setPosition(-w / 2 + 98, h / 2 - 28);
+      card.cost.setOrigin(0, 0.5).setPosition(-w / 2 + 116, h / 2 - 28).setFontSize(28);
+    }
+  }
+
+  /** A vector icon, baked once per icon, size and color. */
+  private drawGlyph(img: Phaser.GameObjects.Image, draw: GlyphDraw, size: number, color: number) {
+    setShape(img, `glyph|${drawId(draw)}|${size}|${color}`, size, size, (g) => draw(g, size, color), Math.ceil(size * 0.25));
+  }
+
+  /** Long names and effects shrink to fit (clear of the level badge). */
+  private fit(card: Card) {
+    const w = this.cardW;
+    const room = this.horizontal ? w - 28 : w - 100 - card.level.width - 10;
+    card.name.setScale(1);
+    card.name.setScale(card.name.width > room ? room / card.name.width : 1);
+    if (this.horizontal) {
+      // Phone strip: the description gets two lines above the price. Fonts differ a little between
+      // phones (a Samsung wrapped the old Stellar Luck text "Rare bodies more often when scanning"
+      // to three lines over the price), so the font steps down until the text fits in two.
+      const key = `${card.desc.text}|${card.layout}`;
+      if (card.descFit !== key) {
+        card.descFit = key;
+        let size = 22;
+        card.desc.setFontSize(size);
+        while (size > 16 && card.desc.getWrappedText(card.desc.text).length > 2) card.desc.setFontSize(--size);
+      }
+      card.desc.setScale(1);
+    } else {
+      const descRoom = w - 100;
+      card.desc.setScale(1);
+      card.desc.setScale(card.desc.width > descRoom ? descRoom / card.desc.width : 1);
+    }
+  }
+
+  private drawCard(card: Card, force = false) {
+    const e = this.entries.get(card.id)!;
+    const maxed = e.cost === null;
+    const affordable = !maxed && e.affordable;
+    const iconKey = typeof e.icon === 'string' ? e.icon : drawId(e.icon);
+    const state = `${e.name}|${e.desc}|${e.level}|${e.cost}|${affordable}|${iconKey}|${this.cardW}|${this.cardH}|${this.horizontal}`;
+    if (!force && state === card.state) return;
+    card.state = state;
+    this.frame(card, affordable ? 0x5a3a2a : 0x3a2820, affordable ? 0xffc23d : 0x6a4c3c, affordable ? 1 : 0.8);
+    const size = this.horizontal ? 44 : 50;
+    if (typeof e.icon === 'string') {
+      card.icon.setTexture(e.icon).setDisplaySize(size * 1.15, size * 1.15);
+    } else {
+      this.drawGlyph(card.icon, e.icon, size, affordable ? 0xffd166 : 0xc9ab92);
+    }
+    card.name.setText(e.name);
+    card.desc.setText(e.desc);
+    card.level.setText(e.level);
+    card.cost.setText(maxed ? '' : formatNumber(e.cost!));
+    card.cost.setColor(affordable ? '#ffd166' : '#b8957c');
+    card.coin.setVisible(!maxed);
+    if (!maxed) this.drawGlyph(card.coin, coinIcon, 26, affordable ? COIN_COLOR : 0x8a6a52);
+    this.fit(card);
+  }
+
+  private drawBoost(card: Card, boost: Boost, force = false) {
+    const ready = boost.wait <= 0 && !boost.blocked;
+    const status = boost.blocked ?? (boost.wait > 0 ? app.t('core.readyIn', { t: formatCountdown(boost.wait) }) : app.t('shop.free'));
+    const state = `${boost.id}|${boost.name}|${boost.desc}|${ready}|${status}|${this.cardW}|${this.cardH}|${this.horizontal}`;
+    if (!force && state === card.state) return;
+    card.state = state;
+    const reward = app.theme.reward;
+    this.frame(card, ready ? 0x3a2a5c : 0x2c2a2e, ready ? reward : 0x5a4a7a, ready ? 1 : 0.8);
+    this.drawGlyph(card.icon, boost.icon, this.horizontal ? 42 : 46, ready ? 0xd9c8ff : 0x8a7aa8);
+    card.name.setText(boost.name);
+    card.desc.setText(boost.desc);
+    card.level.setText('');
+    // Video icon before the status line: this card plays a rewarded ad (CrazyGames asks for a clear marker).
+    card.coin.setVisible(true);
+    this.drawGlyph(card.coin, icons.videoIcon, 30, ready ? 0xd9c8ff : 0x8a7aa8);
+    card.cost.setText(status);
+    card.cost.setColor(ready ? REWARD_TEXT : "#a99cc4");
+    card.cost.setScale(1);
+    const costRoom = this.cardW - (this.horizontal ? 62 : 130);
+    if (card.cost.width > costRoom) card.cost.setScale(costRoom / card.cost.width);
+    this.fit(card);
+  }
+
+  /** Re-reads the entries: new cards appear in their place, states follow coins. */
+  refresh(force = false) {
+    const list = this.opts.entries();
+    const ids = list.map((e) => e.id);
+    this.entries = new Map(list.map((e) => [e.id, e]));
+    const changed = force || ids.join() !== this.order.join();
+    this.order = ids;
+    for (const id of ids) {
+      const card = this.cards.get(id) ?? this.makeCard(id, '', (c) => this.tapUpgrade(c));
+      this.drawCard(card, force || changed);
+    }
+    for (const [id, card] of this.cards) if (id !== BOOST_CARD && !this.entries.has(id)) card.box.setVisible(false);
+
+    this.boost = this.opts.boost?.() ?? null;
+    const boostCard = this.cards.get(BOOST_CARD) ?? (this.boost ? this.makeCard(BOOST_CARD, '', (c) => this.tapBoost(c)) : null);
+    if (this.boost && boostCard) this.drawBoost(boostCard, this.boost, force);
+    boostCard?.box.setVisible(!!this.boost);
+    this.list = this.boost ? [BOOST_CARD, ...ids] : ids;
+    this.freeId = this.opts.freeTarget?.() ?? null;
+  }
+
+  /** Normal opacity of a card: maxed ones are dimmed. */
+  private cardAlpha(id: string) {
+    if (id === BOOST_CARD) return 1;
+    return this.entries.get(id)?.cost === null ? 0.6 : 1;
+  }
+
+  private tick(_t: number, delta: number) {
+    if (!this.dragStart && this.glide !== null) {
+      // Arrow tap: ease to the next screenful.
+      this.scroll += (this.glide - this.scroll) * (1 - Math.pow(0.78, delta / 16.7));
+      if (Math.abs(this.glide - this.scroll) < 0.5) {
+        this.scroll = this.glide;
+        this.glide = null;
+      }
+    } else if (!this.dragStart) {
+      // Inertia after a flick, and a soft pull back inside the bounds.
+      this.scroll += this.velocity;
+      this.velocity *= Math.pow(0.88, delta / 16.7);
+      const max = this.maxScroll();
+      if (this.scroll < 0) this.scroll += (0 - this.scroll) * 0.2;
+      else if (this.scroll > max) this.scroll += (max - this.scroll) * 0.2;
+      else if (Math.abs(this.velocity) < 1) {
+        // Settle on a card edge once the flick slows down.
+        const step = this.span + this.gap;
+        const target = Phaser.Math.Clamp(Math.round(this.scroll / step) * step, 0, max);
+        this.scroll += (target - this.scroll) * 0.2;
+        if (Math.abs(target - this.scroll) < 0.5) this.scroll = target;
+      }
+    }
+    const { x, y, w, h } = this.area;
+    // Cards cut off or out of view past the end, and whether one of them can be bought now.
+    let hidden = false;
+    let buyable = false;
+    this.list.forEach((id, i) => {
+      const card = this.cards.get(id)!;
+      const offset = this.gap + i * (this.span + this.gap) - this.scroll;
+      if (offset + this.span > this.length + 1) {
+        hidden = true;
+        if (id !== BOOST_CARD && this.entries.get(id)?.affordable) buyable = true;
+      }
+      if (this.horizontal) {
+        // The strip spans the screen width, so the screen edge clips it.
+        card.box.setPosition(x + offset + this.cardW / 2, y + h / 2);
+        card.box.setVisible(offset > -this.cardW && offset < w).setAlpha(this.cardAlpha(id));
+      } else {
+        // The column has buttons above it: cards scrolled past its ends fade out instead of
+        // drawing over them (there is no clipping mask).
+        card.box.setPosition(x + w / 2, y + offset + this.cardH / 2);
+        const over = Math.max(0, -offset, offset + this.cardH - h);
+        const fade = Phaser.Math.Clamp(1 - over / (this.cardH * 0.5), 0, 1);
+        card.box.setVisible(fade > 0.02).setAlpha(this.cardAlpha(id) * fade);
+      }
+    });
+    // The free badge sits on its card's corner.
+    const target = this.freeId ? this.cards.get(this.freeId) : null;
+    // Shown only when it can be used: a countdown on a card is clutter.
+    const fullyShown = !!target && target.box.visible && target.box.alpha >= this.cardAlpha(target.id) - 0.01;
+    const showFree = fullyShown && app.ads.rewardedAvailable && !app.clean && (this.opts.freeCooldown?.() ?? 1) <= 0;
+    this.free.setVisible(showFree);
+    if (target && showFree) this.free.setPosition(target.box.x + this.cardW / 2 - 70, target.box.y - this.cardH / 2 + 4);
+    this.placeMore(hidden, buyable);
+    this.placeGlow();
+  }
+
+  /** Pulsing outline around the boost card while its boost is highlighted (a hint, it blocks nothing). */
+  private placeGlow() {
+    const card = this.cards.get(BOOST_CARD);
+    const on = !!this.boost?.highlight && !!card && card.box.visible && card.box.alpha > 0.5;
+    this.glow.setVisible(on);
+    if (!on) return;
+    const w = this.cardW + 16;
+    const h = this.cardH + 16;
+    const look = `${w}|${h}`;
+    if (look !== this.glowLook) {
+      this.glowLook = look;
+      const color = app.theme.reward;
+      setShape(this.glow, `boost-glow|${look}|${color}`, w, h, (g) => {
+        g.lineStyle(10, color, 0.35);
+        g.strokeRoundedRect(-w / 2, -h / 2, w, h, 26);
+        g.lineStyle(4, color, 1);
+        g.strokeRoundedRect(-w / 2 + 4, -h / 2 + 4, w - 8, h - 8, 23);
+      }, 10);
+    }
+    this.glow.setPosition(card!.box.x, card!.box.y).setAlpha(0.45 + 0.45 * Math.sin(this.scene.time.now / 180));
+  }
+
+  /**
+   * The "more" arrow: at the right edge of the strip or the bottom edge of the column while cards
+   * are out of view there. Gold and bobbing a little more when one of those cards can be bought.
+   */
+  private placeMore(hidden: boolean, buyable: boolean) {
+    this.more.setVisible(hidden);
+    this.moreZone.input!.enabled = hidden;
+    if (!hidden) return;
+    const r = this.horizontal ? 18 : 16;
+    const color = buyable ? 0xffc23d : 0xc9ab92;
+    const look = `${r}|${color}`;
+    if (look !== this.moreLook) {
+      this.moreLook = look;
+      setShape(this.more, `more|${look}`, r * 2, r * 2, (g) => drawMore(g, r, color));
+    }
+    const bob = Math.sin(this.scene.time.now / 240) * (buyable ? 4 : 2.5);
+    const { x, y, w, h } = this.area;
+    if (this.horizontal) {
+      const cx = x + w - r - 7;
+      const cy = y + h / 2;
+      this.more.setRotation(0).setPosition(cx + bob, cy);
+      this.moreZone.setPosition(cx - 8, cy);
+    } else {
+      // On the bottom edge, between the last card's price line and the screen edge.
+      const cx = x + w / 2;
+      const cy = y + h - 2;
+      this.more.setRotation(Math.PI / 2).setPosition(cx, cy + bob);
+      this.moreZone.setPosition(cx, cy);
+    }
+  }
+}

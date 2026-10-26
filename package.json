@@ -11,10 +11,17 @@
     "dev:cg": "vite --mode crazygames",
     "build": "tsc --noEmit && vite build --mode crazygames && node scripts/check-build.mjs dist/crazygames crazygames",
     "build:web": "tsc --noEmit && vite build --mode web && node scripts/check-build.mjs dist/web web",
+    "build:poki": "tsc --noEmit && vite build --mode poki && node scripts/check-build.mjs dist/poki poki",
+    "dev:poki": "vite --mode poki",
     "preview": "vite preview --outDir dist/crazygames",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/core.test.ts",
-    "sync-core": "node scripts/sync-core.mjs"
+    "test": "node --experimental-strip-types --test tests/core.test.ts src/logic/cafe.test.ts src/logic/daily.test.ts src/i18n/i18n.test.ts",
+    "sync-core": "node scripts/sync-core.mjs",
+    "sim": "node --experimental-strip-types tools/sim/run.ts 200",
+    "sim:quick": "node --experimental-strip-types tools/sim/quick.ts",
+    "sim:pacing": "node --experimental-strip-types tools/sim/pacing.ts 100",
+    "sim:daily": "node --experimental-strip-types tools/sim/daily.ts 100",
+    "build:single": "npm run build:web && node scripts/build-single.mjs dist/web dist/single/TinyTailsCafe_PhoneTest_v1.html"
   },
   "dependencies": {
     "phaser": "4.2.1"

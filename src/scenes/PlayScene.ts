@@ -2,220 +2,1153 @@ import Phaser from 'phaser';
 import {
   app,
   BaseScene,
-  Button,
   burst,
-  DebugOverlay,
+  dayKey,
+  Button,
   FixedStep,
   floatText,
-  formatDuration,
+  formatClock,
+  formatCountdown,
   formatNumber,
   icons,
+  Panel,
   punch,
-  rewardButton,
   secondsAway,
-  soundButton,
-  toast,
+  setShape,
+  showOfflinePanel,
+  Tutorial,
+  type TutorialStep,
   type ViewportInfo,
 } from '@core';
+import { content, decorContent } from '../game/content';
+import { AD_TIMERS, boostCooldown, breakAd, dailyClaimable, mainCafe, noteAnimal, openDaily, takeDailyOffer } from '../game/meta';
+import { Cafe, newRunState, type AdoptResult, type CafeEvent, type OrderState } from '../logic/cafe.ts';
+import { decorTipMult } from '../logic/decor.ts';
+import { boltIcon, bookIcon, coinIcon, COIN_COLOR, globeIcon, menuIcon, pawIcon, plantIcon, seatIcon, starIcon, starSlotIcon, stopwatchIcon, trophyIcon, UPGRADE_ICONS } from '../render/icons';
+import { animalTexture, itemTexture } from '../render/textures';
+import { measure } from '../game/measure';
+import { startMusic } from '../game/music';
 import { save } from '../save';
+import { Floor } from '../ui/Floor';
+import { showAdoptReveal, showDecor, showFinish, showGameMenu, showRecords, showStaffBook } from '../ui/panels';
+import { BOOST_CARD, ShopList, type Boost, type ShopEntry } from '../ui/ShopList';
+import { notice } from '../ui/notice';
+import { TaskBar, type TaskView } from '../ui/TaskBar';
+import type { TaskDef } from '../logic/content.ts';
 
-// Framework demo. It touches every core feature so the framework can be checked on a phone:
-// tap feedback, upgrades, idle income, offline income, rewarded ad, pause, sound, layout, delta time.
-// Game #1 replaces this scene.
+const STEP_MS = 100;
+const TOP_PORTRAIT = 172;
+const TOP_LANDSCAPE = 92;
+const SHOP_COLUMN = 372;
+/** Height of the task bar at the top of the shop column (desktop). */
+const TASK_COLUMN_H = 72;
 
-const ORBIT_SPEED = Math.PI / 2; // radians per second: one lap every 4 seconds at any frame rate
-
+/**
+ * The cafe: three floors stacked like a doll house, the shop strip (phone) or column (desktop),
+ * coins and the star goal on top. The run state (logic/cafe.ts) is the truth; floors draw from it.
+ */
 export class PlayScene extends BaseScene {
-  private orb!: Phaser.GameObjects.Container;
-  private orbBody!: Phaser.GameObjects.Arc;
-  private comet!: Phaser.GameObjects.Arc;
-  private coinsText!: Phaser.GameObjects.Text;
-  private rateText!: Phaser.GameObjects.Text;
-  private hint!: Phaser.GameObjects.Text;
-  private stars!: Phaser.GameObjects.Graphics;
-  private starList: { x: number; y: number; r: number; speed: number }[] = [];
-  private buyTap!: Button;
-  private buyAuto!: Button;
-  private reward!: Button;
-  private pauseBtn!: Button;
-  private soundBtn!: Button;
-  private orbitAngle = 0;
-  private orbitRadius = 200;
-  private income = new FixedStep(100, (sec) => this.addCoins(save.data.perSecond * sec, false));
-  // Measures orbit speed against the wall clock, to prove movement follows real time.
-  private measure = { start: 0, angle: 0 };
+  private cafe!: Cafe;
+  private floors: Floor[] = [];
+  private shop!: ShopList;
+  private tut!: Tutorial;
+  private tick!: FixedStep;
+  private events2: CafeEvent[] = [];
+  private bg!: Phaser.GameObjects.Rectangle;
+  private topBar!: Phaser.GameObjects.Image;
+  private coinIcon!: Phaser.GameObjects.Image;
+  private coins!: Phaser.GameObjects.Text;
+  private rate!: Phaser.GameObjects.Text;
+  private stars: Phaser.GameObjects.Image[] = [];
+  private goal!: Phaser.GameObjects.Text;
+  private goalBar!: Phaser.GameObjects.Graphics;
+  private rush!: Phaser.GameObjects.Text;
+  private clock!: Phaser.GameObjects.Text;
+  private menuBtn!: Button;
+  private taskBar!: TaskBar;
+  private panel: Panel | null = null;
+  private lastStars = 0;
+  private hudTimer = 0;
+  private shownCoins = -1;
+  private goalRect = { x: 0, y: 0, w: 0 };
+  /** Text, orientation and width the goal line was last set for. */
+  private goalLook = '';
+  /** Panels and reveals waiting their turn (one at a time). */
+  private queue: (() => Panel | null)[] = [];
+  /** Milliseconds until the next check for a new day (daily orders, today's special). */
+  private dayTimer = 0;
+  /** News of a new day, shown once no window is open. */
+  private dayNews: string | null = null;
+  /** What the task bar showed last refresh, to bounce it when something becomes claimable. */
+  private barKey = '';
+  /** The five-star moment is on screen: news of the first day waits for it. */
+  private finishing = false;
+  /** A queued window opens in a moment (150 ms after the last one closed): news waits for it too. */
+  private panelDue = false;
 
   constructor() {
-    super('Play', { gameplay: true });
+    // gameplayStart goes out at the first tap, not when loading ends (Poki guide 5.1).
+    super('Play', { gameplay: 'firstInput' });
   }
 
   protected build() {
-    const theme = app.theme;
-    this.stars = this.add.graphics();
-    for (let i = 0; i < 90; i++) {
-      this.starList.push({ x: Math.random(), y: Math.random(), r: Phaser.Math.FloatBetween(1, 3.2), speed: Phaser.Math.FloatBetween(8, 40) });
+    this.floors = [];
+    this.stars = [];
+    this.queue = [];
+    this.panelDue = false;
+    this.panel = null;
+    this.leaving = false;
+    if (save.data.mode === 'timed' && !save.data.timed) save.data.mode = 'main';
+    this.cafe = save.data.mode === 'timed' ? new Cafe(content, save.data.timed!) : mainCafe();
+    const cafe = this.cafe;
+    if (cafe.s.mode === 'main') {
+      cafe.extraTips = decorTipMult(decorContent, save.data.decor);
+      cafe.decorCount = save.data.decor.length;
     }
+    // A brand-new player: patience waits for the tutorial.
+    if (cafe.s.mode === 'main' && !save.data.tutorial.includes('serve')) cafe.s.calm = true;
+    cafe.reassign();
+    this.lastStars = cafe.stars();
 
-    this.orbBody = this.add.circle(0, 0, 150, theme.primary);
-    const shine = this.add.circle(-45, -50, 46, 0xffffff, 0.22);
-    this.orb = this.add.container(0, 0, [this.orbBody, shine]);
-    this.orb.setSize(300, 300);
-    this.orb.setInteractive(new Phaser.Geom.Circle(150, 150, 165), Phaser.Geom.Circle.Contains);
-    this.orb.on('pointerdown', (p: Phaser.Input.Pointer) => this.tap(p.worldX, p.worldY));
-    this.comet = this.add.circle(0, 0, 14, 0xffffff);
+    this.bg = this.add.rectangle(0, 0, 10, 10, 0x2a1d17).setOrigin(0);
+    content.cafe.floors.forEach((_, i) => {
+      const f = new Floor(this, cafe, i, {
+        onMachine: (item, x, y) => this.tapMachine(item, x, y),
+        onCustomer: (id, x, y) => this.tapCustomer(id, x, y),
+        onOpenFloor: (n) => this.openFloor(n),
+        onUnlockItem: (item) => this.unlockItem(item),
+      });
+      f.setDepth(5 + i);
+      this.floors.push(f);
+    });
+    this.applyDecor();
 
-    this.coinsText = this.text(0, 0, '', 84).setOrigin(0.5);
-    this.rateText = this.text(0, 0, '', 32, theme.textDim, '700').setOrigin(0.5);
-    this.hint = this.text(0, 0, app.t('demo.hint'), 40, theme.text).setOrigin(0.5);
-    this.tweens.add({ targets: this.hint, alpha: 0.35, duration: 700, yoyo: true, repeat: -1 });
+    // Top bar.
+    this.topBar = this.add.image(0, 0, '__DEFAULT').setOrigin(0).setDepth(30);
+    const font = { fontFamily: app.theme.font, resolution: app.textResolution };
+    this.coinIcon = this.add.image(0, 0, '__DEFAULT').setDepth(31);
+    setShape(this.coinIcon, 'coin|44', 44, 44, (g) => coinIcon(g, 44, COIN_COLOR));
+    this.coins = this.add.text(0, 0, '0', { ...font, fontStyle: '900', fontSize: 48, color: '#ffffff' }).setOrigin(0, 0.5).setDepth(31);
+    this.rate = this.add.text(0, 0, '', { ...font, fontStyle: '700', fontSize: 24, color: '#e3cbb8' }).setOrigin(0, 0.5).setDepth(31);
+    for (let i = 0; i < 5; i++) this.stars.push(this.add.image(0, 0, '__DEFAULT').setDepth(31));
+    this.goal = this.add.text(0, 0, '', { ...font, fontStyle: '900', fontSize: 24, color: '#fff3e0' }).setOrigin(0.5).setDepth(31);
+    this.goalBar = this.add.graphics().setDepth(31);
+    this.rush = this.add.text(0, 0, '', { ...font, fontStyle: '900', fontSize: 26, color: '#2a1a00', backgroundColor: '#ffc23d', padding: { x: 14, y: 6 } }).setOrigin(0.5).setDepth(40).setVisible(false);
+    this.clock = this.add.text(0, 0, '', { ...font, fontStyle: '900', fontSize: 30, color: '#bff4ff' }).setOrigin(1, 0.5).setDepth(31);
+    this.menuBtn = new Button(this, 0, 0, {
+      icon: menuIcon,
+      width: 84,
+      height: 76,
+      color: 0x5a3a2a,
+      textColor: '#fff3e0',
+      onClick: () => this.openMenu(),
+    });
+    this.menuBtn.setDepth(32);
 
-    this.buyTap = new Button(this, 0, 0, { label: '', width: 420, height: 100, fontSize: 32, sound: false, onClick: () => this.buy('tap') });
-    this.buyAuto = new Button(this, 0, 0, { label: '', width: 420, height: 100, fontSize: 32, sound: false, onClick: () => this.buy('auto') });
-    this.reward = rewardButton(this, 0, 0, {
-      label: app.t('demo.rewardDouble'),
-      width: 420,
-      onReward: () => {
-        app.audio.play('reward');
-        this.addCoins(Math.max(10, save.data.coins), true);
-        burst(this, this.orb.x, this.orb.y, theme.reward, 28, 560);
+    this.taskBar = new TaskBar(this, () => this.tapTask());
+
+    this.shop = new ShopList(this, {
+      entries: () => this.shopEntries(),
+      boost: () => this.boost(),
+      freeTarget: () => this.cafe.freeUpgradeTarget(),
+      onFree: (id) => this.freeUpgrade(id),
+      // Poki: no timer; after one free upgrade the next is offered after a few purchases.
+      freeCooldown: () => (AD_TIMERS ? this.cafe.rewardLeft('freeUpgrade') : this.cafe.rewardArmed('freeUpgrade') ? 0 : 1),
+    });
+
+    this.tut = new Tutorial(this, {
+      onStepDone: (id) => {
+        if (!save.data.tutorial.includes(id)) {
+          save.data.tutorial.push(id);
+          measure('tutorial', id, 'complete');
+        }
+        save.flush();
       },
     });
-    this.pauseBtn = new Button(this, 0, 0, {
-      icon: icons.pauseIcon,
-      width: 96,
-      height: 96,
-      color: theme.surface,
-      textColor: theme.surfaceText,
-      onClick: () => app.openPause(this),
-    });
-    this.soundBtn = soundButton(this, 0, 0);
-    this.input.keyboard?.on('keydown-ESC', () => app.openPause(this));
 
-    this.creditAway(secondsAway(save.lastSavedAt));
-    // Coming back to the tab: credit the time spent away, like offline income.
-    const offResume = app.pause.on('resume', (ms) => {
-      this.measure.start = 0;
-      this.creditAway(ms / 1000);
-    });
-    // Scene events outlive a restart, so listeners added here are removed on shutdown.
-    const onSceneResume = () => (this.measure.start = 0);
-    this.events.on(Phaser.Scenes.Events.RESUME, onSceneResume);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      offResume();
-      this.events.off(Phaser.Scenes.Events.RESUME, onSceneResume);
+    this.tick = new FixedStep(STEP_MS, (sec) => this.step(sec));
+    // ESC pauses (menu) and resumes (Poki guide 6). Panels close themselves on ESC.
+    this.input.keyboard?.on('keydown-ESC', () => {
+      if (!this.panel) this.time.delayedCall(0, () => this.openMenu());
     });
 
-    this.refresh();
+    // Test hook for the playtest bot (web build only).
+    if (__TARGET__ === 'web') (window as unknown as { __play?: PlayScene }).__play = this;
+    this.dayNews = null;
+    this.barKey = '';
+    this.finishing = false;
+    this.newDay();
+    this.refreshStars(true);
+    this.refreshHud();
+    this.welcome();
+    this.startIntro();
+    startMusic(this);
   }
 
   protected layout(vp: ViewportInfo) {
+    this.bg.setSize(vp.width, vp.height);
     const s = vp.safe;
-    this.pauseBtn.setPosition(80, 80);
-    this.soundBtn.setPosition(vp.width - 80, 80);
+    let shopRect: [number, number, number, number, boolean];
+    // Tall phones have room above the 16:9 safe area: the HUD sits at the top edge so the floors get it.
+    const ty = vp.portrait ? Math.min(s.y, 12) : s.y;
     if (vp.portrait) {
-      // Phone: counter on top, orb in the middle, shop below. The shop never covers the orb.
-      this.coinsText.setPosition(vp.width / 2, s.y + 190);
-      this.rateText.setPosition(vp.width / 2, s.y + 260);
-      this.orb.setPosition(vp.width / 2, s.y + 560);
-      const bottom = vp.height - 90;
-      this.reward.setPosition(vp.width / 2, bottom - 280);
-      this.buyTap.setPosition(vp.width / 2, bottom - 140);
-      this.buyAuto.setPosition(vp.width / 2, bottom);
+      // Phone: bar, three floors, shop strip at the bottom.
+      const top = ty + TOP_PORTRAIT;
+      // Tall phones: bigger floors and a taller shop strip, so nothing is left empty at the bottom.
+      const shopH = Phaser.Math.Clamp(Math.round((vp.height - 1280) * 0.15) + 196, 196, 236);
+      const bottom = vp.height - shopH - 22;
+      const gap = 8;
+      const fh = Phaser.Math.Clamp((bottom - top - gap * 2) / 3, 190, 400);
+      this.floors.forEach((f, i) => f.layout(0, top + i * (fh + gap), vp.width, fh));
+      const shopY = top + 3 * fh + 2 * gap + 12;
+      shopRect = [0, shopY, vp.width, Math.min(shopH, vp.height - shopY - 10), true];
+      this.drawTopBar(vp.width, ty + TOP_PORTRAIT - 6);
+      const y1 = ty + 52;
+      // The Poki button sits top-left on phones: keep that corner empty, menu goes top-right.
+      this.menuBtn.setPosition(vp.width - s.x - 54, y1);
+      this.coinIcon.setPosition(s.x + 140, y1);
+      this.coins.setPosition(s.x + 170, y1 - 4);
+      this.rate.setPosition(s.x + 172, y1 + 36);
+      this.stars.forEach((st, i) => st.setPosition(vp.width - s.x - 300 + i * 42, y1 - 8));
+      // The star goal sits under the stars; the second row is the task bar (and the clock in a timed run).
+      // Kept clear of the menu button on the right: long goal lines (other languages) shrink instead.
+      this.goalRect = { x: vp.width - s.x - 216, y: y1 + 32, w: 234 };
+      const timed = this.cafe.s.mode === 'timed';
+      this.clock.setPosition(vp.width - s.x - 24, ty + 130);
+      // Poki's button sits top-left on phones (46x62 CSS px from 24 px down): the task bar starts right of it.
+      const pillRight = 54 * (vp.width / vp.cssWidth);
+      const tx = Math.max(s.x + 24, pillRight);
+      this.taskBar.layout(tx, ty + 100, vp.width - s.x - 24 - tx - (timed ? 150 : 0), 58);
     } else {
-      // Desktop 16:9: orb on the left, shop in a column on the right.
-      const left = s.x + s.width * 0.36;
-      const right = s.x + s.width * 0.78;
-      this.coinsText.setPosition(left, s.y + 110);
-      this.rateText.setPosition(left, s.y + 180);
-      this.orb.setPosition(left, s.y + 440);
-      this.reward.setPosition(right, s.y + 260);
-      this.buyTap.setPosition(right, s.y + 400);
-      this.buyAuto.setPosition(right, s.y + 540);
+      // Desktop: floors on the left, shop column on the right.
+      const shopW = SHOP_COLUMN;
+      const floorsW = Math.min(1100, vp.width - shopW - 24);
+      const top = TOP_LANDSCAPE + Math.max(0, s.y);
+      const gap = 6;
+      const fh = (vp.height - top - 10 - gap * 2) / 3;
+      this.floors.forEach((f, i) => f.layout(0, top + i * (fh + gap), floorsW, fh));
+      // The task bar heads the shop column.
+      this.taskBar.layout(floorsW + 12, 16, vp.width - floorsW - 24, TASK_COLUMN_H);
+      shopRect = [floorsW + 12, 16 + TASK_COLUMN_H + 10, vp.width - floorsW - 24, vp.height - 42 - TASK_COLUMN_H, false];
+      this.drawTopBar(floorsW, top - 6);
+      const y1 = 44;
+      // Top-left stays free for the Poki button; the menu sits at the right end of the bar.
+      this.menuBtn.setPosition(floorsW - 54, y1);
+      this.coinIcon.setPosition(124, y1);
+      this.coins.setPosition(154, y1 - 8);
+      this.rate.setPosition(156, y1 + 26);
+      const sx = floorsW - 330;
+      this.stars.forEach((st, i) => st.setPosition(sx + i * 44, y1 - 14));
+      this.goalRect = { x: floorsW - 240, y: y1 + 18, w: 280 };
+      this.clock.setPosition(floorsW / 2 + 110, y1);
     }
-    this.orbitRadius = 215;
-    this.hint.setPosition(this.orb.x, this.orb.y + 215);
+    this.shop.layout(...shopRect);
+    const f0 = this.floors[0].bounds();
+    this.rush.setPosition(f0.x + f0.w / 2, f0.y + 26);
+    this.refreshStars(true);
+  }
+
+  private drawTopBar(w: number, h: number) {
+    setShape(this.topBar, `topbar|${Math.round(w)}|${Math.round(h)}`, w, h, (g) => {
+      g.fillStyle(0x3b2a22, 1);
+      g.fillRect(-w / 2, -h / 2, w, h);
+      g.fillStyle(0x000000, 0.25);
+      g.fillRect(-w / 2, h / 2 - 5, w, 5);
+    }, 0);
+    this.topBar.setPosition(0, 0);
   }
 
   update(_time: number, delta: number) {
-    // Movement scaled by delta: same speed at 30, 60 or 144 fps.
-    this.orbitAngle += ORBIT_SPEED * (delta / 1000);
-    this.comet.setPosition(
-      this.orb.x + Math.cos(this.orbitAngle) * this.orbitRadius,
-      this.orb.y + Math.sin(this.orbitAngle) * this.orbitRadius,
-    );
-    this.income.update(delta);
-    this.drawStars(delta);
-
-    if (!this.measure.start) this.measure = { start: performance.now(), angle: this.orbitAngle };
-    const elapsed = (performance.now() - this.measure.start) / 1000;
-    if (elapsed > 1) {
-      const speed = (this.orbitAngle - this.measure.angle) / elapsed;
-      DebugOverlay.extra[app.t('demo.speed')] = `${speed.toFixed(3)} rad/s (want ${ORBIT_SPEED.toFixed(3)})`;
+    // The cafe waits while a window is open: customers should not walk out while the player reads.
+    // It also waits from the moment an ad is asked for (Poki: gameplayStop came first), not only once it
+    // plays: found 22/10, a star reached in the frames before a break started was celebrated under the ad.
+    const frozen = !!this.panel || app.ads.isShowing;
+    if (!frozen) this.tick.update(delta);
+    for (const f of this.floors) f.sync(frozen ? 0 : delta);
+    // Midnight while playing: new orders and a new special without a reload.
+    this.dayTimer -= delta;
+    if (this.dayTimer <= 0) {
+      this.dayTimer = 5000;
+      this.newDay();
+    }
+    this.hudTimer -= delta;
+    if (this.hudTimer <= 0) {
+      this.hudTimer = 120;
+      this.refreshHud();
+      this.shop.refresh();
+      this.checkTriggers();
     }
   }
 
-  private drawStars(delta: number) {
-    const { width, height } = this.vp;
-    this.stars.clear();
-    for (const star of this.starList) {
-      star.y += (star.speed * delta) / 1000 / height;
-      if (star.y > 1) star.y -= 1;
-      this.stars.fillStyle(0xffffff, 0.25 + star.r / 6);
-      this.stars.fillCircle(star.x * width, star.y * height, star.r);
+  // ---------- simulation ----------
+
+  private step(sec: number) {
+    const cafe = this.cafe;
+    if (cafe.s.calm && save.data.tutorial.includes('serve') && cafe.s.served >= 3) cafe.s.calm = false;
+    if (!cafe.s.vipOn && cafe.s.served >= 15 && save.data.tutorial.includes('upgrade')) cafe.s.vipOn = true;
+    cafe.step(sec, this.events2);
+    this.handle(this.events2);
+    this.events2 = [];
+  }
+
+  private handle(events: CafeEvent[]) {
+    for (const e of events) {
+      switch (e.type) {
+        case 'served': {
+          const f = this.floors[e.customer.floor];
+          const top = f.customerTop(e.customer.id);
+          if (top) {
+            floatText(this, top.x, top.y - 10, `+${formatNumber(e.coins)}`, { color: e.hand ? '#ffd34d' : '#ffffff', size: e.hand ? 40 : 32 });
+          }
+          if (e.vipBonus > 0) {
+            if (top) burst(this, top.x, top.y + 20, 0xffd34d, 24, 520);
+            notice(this, app.t('toast.vip', { n: formatNumber(e.vipBonus) }));
+            app.audio.play('reward');
+            app.moments.emit('rarePull', { tier: 3, odds: 0, label: 'vip' });
+          } else {
+            app.audio.play('coin', { pitchJitter: 90, volume: e.hand ? 0.6 : 0.22 });
+          }
+          punch(this, this.coins, 0.06);
+          break;
+        }
+        case 'lost': {
+          const top = this.floors[e.customer.floor].customerTop(e.customer.id);
+          if (top) floatText(this, top.x, top.y, '...', { color: '#ffb0a0', size: 34 });
+          app.audio.play('sad', { volume: 0.4 });
+          break;
+        }
+        case 'made': {
+          const f = this.floors[this.cafe.floorIndexOf(e.item)];
+          const top = f.machineTop(e.item);
+          if (top && !this.cafe.s.assign[e.item]) {
+            burst(this, top.x, top.y + 20, 0xfff1b8, 6, 160);
+            app.audio.play('pop', { pitchJitter: 80, volume: 0.5 });
+          }
+          break;
+        }
+        case 'star':
+          this.onStar(e.stars);
+          break;
+        case 'taskDone':
+          // The bar bounces from refreshHud, for chain tasks and daily orders alike.
+          break;
+        case 'milestone': {
+          // x2 at Lv 10, 25, 50...: a small celebration on the machine (Poki guide 8: celebrate milestones).
+          const top = this.floors[this.cafe.floorIndexOf(e.item)].machineTop(e.item);
+          if (top) {
+            burst(this, top.x, top.y + 20, 0xffd34d, 20, 380);
+            floatText(this, top.x, top.y - 20, `x${e.mult}!`, { color: '#ffd34d', size: 44, rise: 70 });
+          }
+          notice(this, app.t('toast.milestone', { item: app.t(`item.${e.item}`), n: e.mult, l: e.level }));
+          app.audio.play('reward', { volume: 0.7 });
+          break;
+        }
+        case 'finish':
+          this.onFinish();
+          break;
+        default:
+          break;
+      }
     }
   }
 
-  private tap(x: number, y: number) {
-    save.data.taps += 1;
-    this.addCoins(save.data.perTap, false);
-    floatText(this, x, y - 30, `+${formatNumber(save.data.perTap)}`, { color: '#ffffff', size: 46 });
-    punch(this, this.orb, 0.08);
-    app.audio.play('tap', { pitchJitter: 120, volume: 0.8 });
-    app.haptic(6);
-    if (save.data.taps % 25 === 0) burst(this, x, y, app.theme.primary, 12);
-    if (this.hint.visible && save.data.taps >= 3) this.hint.setVisible(false);
+  // ---------- taps ----------
+
+  private tapMachine(item: string, x: number, y: number) {
+    if (this.panel) return;
+    const r = this.cafe.tapStation(item);
+    if (r === 'locked') return;
+    if (r === 'full') {
+      floatText(this, x, y - 30, 'x', { color: '#ffb0a0', size: 28, rise: 30 });
+      return;
+    }
+    app.audio.play('tap', { pitchJitter: 150, volume: 0.6 });
+    app.haptic(5);
+    const f = this.floors[this.cafe.floorIndexOf(item)];
+    const top = f.machineTop(item);
+    if (top) burst(this, top.x, top.y + 30, 0xfff1b8, 4, 140);
   }
 
-  private cost(kind: 'tap' | 'auto') {
-    const level = kind === 'tap' ? save.data.perTap - 1 : save.data.perSecond;
-    const base = kind === 'tap' ? 10 : 25;
-    return Math.floor(base * 1.35 ** level);
+  private tapCustomer(id: number, x: number, y: number) {
+    if (this.panel) return;
+    const r = this.cafe.tapCustomer(id, this.events2);
+    if (r === 'served') {
+      this.handle(this.events2);
+      this.events2 = [];
+      app.haptic(10);
+    } else if (r === 'notReady') {
+      const c = this.cafe.s.customers.find((x) => x.id === id);
+      floatText(this, x, y - 40, c ? app.t('tut.notReady') : '', { color: '#ffe6c0', size: 24, rise: 40 });
+    }
   }
 
-  private buy(kind: 'tap' | 'auto') {
-    const price = this.cost(kind);
-    if (save.data.coins < price) return;
-    save.data.coins -= price;
-    if (kind === 'tap') save.data.perTap += 1;
-    else save.data.perSecond += 1;
-    const button = kind === 'tap' ? this.buyTap : this.buyAuto;
-    app.audio.play('buy');
+  private openFloor(n: number) {
+    if (!this.cafe.openFloor(n)) return;
+    if (this.cafe.s.mode === 'main') measure('floor', content.cafe.floors[n].id, 'complete');
+    const name = app.t(`floor.${content.cafe.floors[n].id}`);
+    app.audio.play('reward');
+    const b = this.floors[n].bounds();
+    burst(this, b.x + b.w / 2, b.y + b.h / 2, 0xffd34d, 40, 640);
+    notice(this, app.t('toast.floorOpen', { floor: name }));
+    app.moments.emit('collectionNew', { id: `floor.${content.cafe.floors[n].id}` });
+    this.refreshStars();
+  }
+
+  private unlockItem(item: string) {
+    if (!this.cafe.unlockItem(item)) return;
+    if (this.cafe.s.mode === 'main') measure('item', item, 'complete');
+    app.audio.play('reward');
+    const top = this.floors[this.cafe.floorIndexOf(item)].machineTop(item);
+    if (top) burst(this, top.x, top.y + 30, 0xffd34d, 24, 420);
+    notice(this, app.t('toast.itemNew', { item: app.t(`item.${item}`) }));
+    this.shop.refresh(true);
+  }
+
+  // ---------- shop ----------
+
+  private shopEntries(): ShopEntry[] {
+    const cafe = this.cafe;
+    const s = cafe.s;
+    const out: ShopEntry[] = [];
+    // Adoption first: helpers are the heart of the game.
+    if (s.served >= 10 || cafe.staffCount() > 0) {
+      const cost = s.adopts === 0 && save.data.tickets > 0 ? 0 : cafe.adoptCost();
+      out.push({
+        id: 'adopt',
+        name: app.t('shop.adopt'),
+        desc: cafe.staffCount() < cafe.slotCount() ? app.t('shop.adoptDesc') : app.t('shop.adoptDup'),
+        icon: save.data.tickets > 0 ? pawIcon : animalTexture(this, 'capybara', { staff: 0 }, 'happy'),
+        level: save.data.tickets > 0 ? `x${save.data.tickets}` : '',
+        cost: save.data.tickets > 0 ? 0 : cost,
+        affordable: save.data.tickets > 0 || s.coins >= cost,
+        onBuy: () => this.adopt('paid'),
+      });
+    }
+    for (const item of content.cafe.items) {
+      const st = s.items[item.id];
+      if (!st.unlocked) continue;
+      const maxed = !cafe.canLevelItem(item.id);
+      // Capped until the last floor opens: the card says where more levels come from.
+      const capped = cafe.levelCapped(item.id);
+      const cost = maxed ? null : cafe.itemLevelCost(item.id);
+      const next = cafe.nextMilestone(st.level);
+      const lastFloor = content.cafe.floors[content.cafe.floors.length - 1].id;
+      out.push({
+        id: `item:${item.id}`,
+        name: app.t(`item.${item.id}`),
+        desc: capped
+          ? app.t('shop.capped', { floor: app.t(`floor.${lastFloor}`) })
+          : cafe.specialItem() === item.id
+            ? app.t('shop.special', { n: content.cafe.special!.mult })
+          : next && next.value
+            ? app.t('shop.itemNext', { n: next.value, l: next.level })
+            : app.t('shop.itemDesc'),
+        icon: itemTexture(this, item.id),
+        level: maxed && !capped ? app.t('shop.max') : app.t('shop.level', { n: st.level }),
+        cost,
+        affordable: cost !== null && s.coins >= cost,
+        onBuy: () => {
+          if (cafe.buyItemLevel(item.id)) this.bought(`item:${item.id}`);
+        },
+      });
+    }
+    content.cafe.floors.forEach((f, i) => {
+      if (!s.floors[i].open) return;
+      const cost = cafe.seatCost(i);
+      if (cost === null) return;
+      if (i === 0 && s.served < 4) return;
+      out.push({
+        id: `seat:${i}`,
+        name: app.t('shop.seat'),
+        desc: app.t('shop.seatDesc', { floor: app.t(`floor.${f.id}`) }),
+        icon: seatIcon,
+        level: `${s.floors[i].seats}/${f.maxSeats}`,
+        cost,
+        affordable: s.coins >= cost,
+        onBuy: () => {
+          if (cafe.buySeat(i)) this.bought(`seat:${i}`);
+        },
+      });
+    });
+    for (const u of content.upgrades) {
+      if (!cafe.upgradeVisible(u)) continue;
+      const maxed = cafe.upgradeMaxed(u.id);
+      const cost = maxed ? null : cafe.upgradeCost(u.id);
+      out.push({
+        id: `up:${u.id}`,
+        name: app.t(`upgrade.${u.id}.name`),
+        desc: app.t(`upgrade.${u.id}.desc`),
+        icon: UPGRADE_ICONS[u.id] ?? pawIcon,
+        level: maxed ? app.t('shop.max') : app.t('shop.level', { n: cafe.level(u.id) }),
+        cost,
+        affordable: cost !== null && s.coins >= cost,
+        onBuy: () => {
+          if (cafe.buyUpgrade(u.id)) this.bought(`up:${u.id}`);
+        },
+      });
+    }
+    return out;
+  }
+
+  private bought(id: string) {
+    app.audio.play('buy', { pitchJitter: 80 });
+    app.haptic(12);
+    const r = this.shop.cardRect(id);
+    if (r) burst(this, r.x, r.y, 0xffc23d, 10, 260);
+    this.refreshHud();
+  }
+
+  private freeUpgrade(id: string) {
+    const cafe = this.cafe;
+    if (!cafe.grantFree(id)) return;
+    cafe.startCooldown('freeUpgrade', boostCooldown(content.cafe.rewarded.freeUpgradeCooldown));
+    cafe.useReward('freeUpgrade');
+    app.audio.play('reward');
+    this.bought(id);
+  }
+
+  /**
+   * Rewarded boost card. Poki manages ad frequency, so there the offers follow the game state instead of
+   * timers (Poki guide 7.1): a free helper when a station is empty and the player cannot afford one yet,
+   * otherwise Rush Hour whenever it is not running. Other portals keep the 5-minute cooldowns (CLAUDE.md 3).
+   */
+  private boost(): Boost | null {
+    const cafe = this.cafe;
+    if (cafe.staffCount() === 0 || !app.ads.rewardedAvailable || app.clean) return null;
+    const rushOn = cafe.s.rushLeft > 0;
+    const rush = (wait: number): Boost => ({
+      id: 'rush',
+      name: app.t('boost.rush'),
+      desc: app.t('boost.rushDesc'),
+      icon: boltIcon,
+      wait: rushOn ? 0 : wait,
+      blocked: rushOn ? app.t('boost.rushOn', { t: formatCountdown(cafe.s.rushLeft) }) : undefined,
+      onReward: () => {
+        if (rushOn) return;
+        cafe.startRush();
+        cafe.startCooldown('rush', boostCooldown());
+        cafe.useReward('rush');
+        app.audio.play('reward');
+        this.tut.complete('rush');
+      },
+    });
+    const freeAdopt: Boost = {
+      id: 'freeAdopt',
+      name: app.t('boost.adopt'),
+      desc: app.t('boost.adoptDesc'),
+      icon: pawIcon,
+      wait: 0,
+      onReward: () => {
+        cafe.startCooldown('freeAdopt', boostCooldown());
+        cafe.useReward('freeAdopt');
+        this.adopt('free');
+      },
+    };
+    if (!AD_TIMERS) {
+      // Offers follow the game state (rewarded.afterBuys), never a clock.
+      const needHelper = cafe.staffCount() < cafe.slotCount() && cafe.s.coins < cafe.adoptCost() && save.data.tickets === 0;
+      if (needHelper && !rushOn && cafe.rewardArmed('freeAdopt')) return freeAdopt;
+      return rushOn || cafe.rewardArmed('rush') ? rush(0) : null;
+    }
+    const rushWait = cafe.rewardLeft('rush');
+    const adoptWait = cafe.rewardLeft('freeAdopt');
+    if (!rushOn && rushWait <= 0) return rush(0);
+    if (adoptWait <= 0) return freeAdopt;
+    return rush(Math.min(rushWait, adoptWait));
+  }
+
+  // ---------- staff ----------
+
+  private adopt(how: 'paid' | 'free') {
+    const cafe = this.cafe;
+    const first = cafe.staffCount() === 0 && cafe.s.mode === 'main' && !save.data.tutorial.includes('helper');
+    const forced = first ? content.staff.adopt.firstGuided : undefined;
+    let r: AdoptResult | null;
+    if (how === 'paid' && save.data.tickets > 0) {
+      save.data.tickets -= 1;
+      r = cafe.adopt(false, forced);
+    } else r = cafe.adopt(how === 'paid', forced);
+    if (!r) return;
+    noteAnimal(r.animal.id, r.level);
+    save.flush();
+    measure('helper', r.animal.id, r.isNew ? 'new' : 'levelup');
+    if (r.rarity >= 2) app.moments.emit('rarePull', { tier: r.rarity, odds: cafe.adoptOdds()[r.rarity], label: r.animal.id });
+    this.tut.complete('adopt');
+    this.showPanel(() => showAdoptReveal(this, cafe, r!, () => this.panelClosed()));
+    this.shop.refresh(true);
+  }
+
+  // ---------- stars and finish ----------
+
+  private onStar(stars: number) {
+    measure(this.cafe.s.mode === 'main' ? 'star' : 'timed-star', stars, 'complete');
+    this.refreshStars();
+    const img = this.stars[stars - 1];
+    if (img) {
+      burst(this, img.x, img.y, 0xffd34d, 26, 420);
+      punch(this, img, 0.6, 300);
+    }
+    if (stars < content.cafe.goals.length) notice(this, `${app.t('star.got')}  ${app.t('star.next', { goal: this.goalText(stars) })}`, 3200);
+    app.audio.play('reward');
+    app.platform.happyTime();
+  }
+
+  private onFinish() {
+    const cafe = this.cafe;
+    // Five stars in the main cafe: daily orders and today's special start now (their news after the finish screen).
+    this.finishing = true;
+    this.newDay();
+    const ms = Math.round((cafe.s.finishedAt ?? cafe.s.time) * 1000);
+    app.moments.emit('finish', { runMs: ms });
+    let rank: number | null = null;
+    const first = cafe.s.mode === 'main' && save.data.firstFinishMs === 0;
+    if (cafe.s.mode === 'main') {
+      if (first) {
+        save.data.firstFinishMs = ms;
+        measure('finish', 'main', 'complete');
+      }
+    } else {
+      measure('timed', 'run', 'complete');
+      const best = Object.keys(cafe.s.staff).reduce((m, id) => Math.max(m, cafe.rarityIndex(cafe.animal(id))), 0);
+      const rec = { ms, best, day: new Date().toISOString().slice(0, 10) };
+      const list = [...save.data.records, rec].sort((a, b) => a.ms - b.ms).slice(0, 5);
+      rank = list.indexOf(rec);
+      if (rank < 0) rank = null;
+      save.data.records = list;
+      if (!save.data.bestRunMs || ms < save.data.bestRunMs) save.data.bestRunMs = ms;
+    }
+    save.flush();
+    this.time.delayedCall(900, async () => {
+      if (AD_TIMERS) await breakAd('finish');
+      this.showPanel(() =>
+        showFinish(this, cafe, {
+          ms,
+          rank,
+          first,
+          onKeep: () => {
+            this.finishing = false;
+            this.panelClosed();
+          },
+          onTimed: () => this.startTimed(),
+          onBack: () => this.leaveTimed(),
+        }),
+      );
+    });
+  }
+
+  private goalText(i: number) {
+    const g = content.cafe.goals[i];
+    if (!g) return app.t('hud.allStars');
+    const n = g.served ?? g.staff ?? g.level ?? 0;
+    return app.t(`hud.goal.${g.id}`, { n });
+  }
+
+  private refreshStars(force = false) {
+    const n = this.cafe.stars();
+    if (!force && n === this.lastStars) return;
+    this.lastStars = n;
+    this.stars.forEach((img, i) => {
+      if (i < n) setShape(img, 'star|40', 40, 40, (g) => starIcon(g, 40, 0xffd34d));
+      else setShape(img, 'starslot|40', 40, 40, (g) => starSlotIcon(g, 40, 0xc9ab92));
+    });
+  }
+
+  // ---------- HUD ----------
+
+  private refreshHud() {
+    const s = this.cafe.s;
+    const coins = Math.floor(s.coins);
+    if (coins !== this.shownCoins) {
+      this.shownCoins = coins;
+      this.coins.setText(formatNumber(coins));
+    }
+    this.rate.setText(app.t('hud.perSec', { n: formatNumber(Math.round(s.rate)) }));
+    const stars = this.cafe.stars();
+    const { x, y, w } = this.goalRect;
+    const vp = this.vp;
+    this.goalBar.clear();
+    // Phone: one small line under the stars, with the count when there is one ("Serve 20 customers 12/20").
+    // Desktop: the line and a progress bar under the stars.
+    const g = content.cafe.goals[stars];
+    const counted = !!g && (g.served !== undefined || g.staff !== undefined);
+    const p = Phaser.Math.Clamp(stars < content.cafe.goals.length ? this.cafe.goalProgress(stars) : 1, 0, 1);
+    const n = g?.served ?? g?.staff ?? 0;
+    const goal = this.goalText(stars) + (vp.portrait && counted && p < 1 ? `  ${Math.floor(p * n)}/${n}` : '');
+    const look = `${goal}|${vp.portrait}|${w}`;
+    if (look !== this.goalLook) {
+      this.goalLook = look;
+      this.goal.setText(goal).setFontSize(vp.portrait ? 20 : 24).setScale(1);
+      if (this.goal.width > w) this.goal.setScale(w / this.goal.width);
+    }
+    this.goal.setPosition(x, y);
+    if (!vp.portrait && stars < content.cafe.goals.length) {
+      this.goalBar.fillStyle(0xffffff, 0.15);
+      this.goalBar.fillRoundedRect(x - w / 2, y + 15, w, 8, 4);
+      this.goalBar.fillStyle(0xffd34d, 1);
+      this.goalBar.fillRoundedRect(x - w / 2, y + 15, Math.max(8, w * p), 8, 4);
+    }
+    this.rush.setVisible(s.rushLeft > 0);
+    if (s.rushLeft > 0) this.rush.setText(app.t('hud.rush', { t: formatCountdown(s.rushLeft) }));
+    this.clock.setVisible(s.mode === 'timed');
+    if (s.mode === 'timed') this.clock.setText(formatClock(s.finishedAt ?? s.time));
+    const view = this.taskView();
+    this.taskBar.show(view);
+    // Something just became claimable: a little bounce.
+    const key = view ? `${view.kind ?? 'task'}|${view.text}|${view.done}` : '';
+    if (view?.done && key !== this.barKey) this.taskBar.ping();
+    this.barKey = key;
+  }
+
+  // ---------- short tasks ----------
+
+  /** The task bar shows once the first serve is done (the first minute is for the tutorial). */
+  private taskView(): TaskView | null {
+    const cafe = this.cafe;
+    if (cafe.s.mode === 'main' && !this.done('serve')) return null;
+    const pick = this.barPick();
+    if (!pick) return null;
+    if (pick.kind === 'info') return { kind: 'info', text: app.t('order.tomorrow'), have: 0, need: 1, reward: 0, done: false };
+    if (pick.kind === 'order') {
+      const o = cafe.orders()[pick.index];
+      const p = cafe.orderProgress(o);
+      return { kind: 'order', text: this.orderText(o), have: p.have, need: p.need, reward: cafe.orderReward(), done: p.have >= p.need };
+    }
+    const t = pick.task;
+    const p = cafe.taskProgress(t);
+    return { kind: 'task', text: this.taskText(t), have: p.have, need: p.need, reward: cafe.taskReward(t), done: p.have >= p.need };
+  }
+
+  /**
+   * What the bar shows. Before five stars: the task chain. After: anything ready to claim first,
+   * then today's orders, then the rest of the chain; with nothing left, "New orders tomorrow".
+   */
+  private barPick(): { kind: 'task'; task: TaskDef } | { kind: 'order'; index: number } | { kind: 'info' } | null {
+    const cafe = this.cafe;
+    const t = cafe.task();
+    const orders = cafe.orders();
+    if (!orders.length) return t ? { kind: 'task', task: t } : null;
+    const open = orders.map((o, index) => ({ o, index })).filter((x) => !x.o.claimed);
+    const ready = open.find((x) => cafe.orderDone(x.o));
+    if (ready) return { kind: 'order', index: ready.index };
+    if (t && cafe.taskDone(t)) return { kind: 'task', task: t };
+    if (open.length) return { kind: 'order', index: open[0].index };
+    if (t) return { kind: 'task', task: t };
+    return { kind: 'info' };
+  }
+
+  private orderText(o: OrderState): string {
+    return app.t(`order.${o.type}`, { n: formatNumber(o.need), item: o.item ? app.t(`item.${o.item}`) : '' });
+  }
+
+  /** A new day (the player's own date) in a five-star cafe: new orders and a new special. */
+  private newDay() {
+    const cafe = this.cafe;
+    if (!cafe.startDay(dayKey())) return;
+    save.flush();
+    const sp = cafe.specialItem();
+    this.dayNews = sp ? app.t('toast.newDay', { item: app.t(`item.${sp}`), n: content.cafe.special!.mult }) : null;
+    this.shop.refresh(true);
+  }
+
+  /** Coins from a task or an order: numbers fly from the bar. */
+  private celebrateClaim(coins: number) {
+    const c = this.taskBar.center;
+    floatText(this, c.x, c.y - 30, `+${formatNumber(coins)}`, { color: '#ffd34d', size: 40 });
+    burst(this, c.x, c.y, 0xffd34d, 22, 460);
+    app.audio.play('reward');
     app.haptic(15);
-    punch(this, button, 0.06);
-    burst(this, button.x, button.y, app.theme.primary, 16);
-    this.refresh();
+    punch(this, this.coins, 0.15);
+    save.flush();
+    this.refreshHud();
+    this.taskBar.enter();
+    this.shop.refresh(true);
   }
 
-  private addCoins(amount: number, pop: boolean) {
-    save.data.coins += amount;
-    if (pop) punch(this, this.coinsText, 0.15);
-    this.refresh();
+  private taskText(t: TaskDef): string {
+    const n = t.n ?? 1;
+    switch (t.type) {
+      case 'served':
+        return app.t('task.served', { n: formatNumber(n) });
+      case 'vips':
+        return n === 1 ? app.t('task.vip1') : app.t('task.vips', { n });
+      case 'itemLevel':
+        return app.t('task.itemLevel', { item: app.t(`item.${t.item}`), n });
+      case 'unlock':
+        return app.t('task.unlock', { item: app.t(`item.${t.item}`) });
+      case 'floor':
+        return app.t('task.floor', { floor: app.t(`floor.${t.floor}`) });
+      case 'seats':
+        return app.t('task.seats', { floor: app.t(`floor.${t.floor}`), n });
+      case 'upgrade':
+        return n === 1 ? app.t('task.upgrade1', { name: app.t(`upgrade.${t.upgrade}.name`) }) : app.t('task.upgrade', { name: app.t(`upgrade.${t.upgrade}.name`), n });
+      case 'adopts':
+        return app.t('task.adopts', { n });
+      case 'staff':
+        return app.t('task.staff', { n });
+      case 'decor':
+        return n === 1 ? app.t('task.decor1') : app.t('task.decor', { n });
+      case 'earned':
+        return app.t('task.earned', { n: formatNumber(n) });
+    }
   }
 
-  private creditAway(seconds: number) {
-    const earned = Math.floor(seconds * save.data.perSecond);
-    if (earned < 1 || seconds < 5) return;
-    this.addCoins(earned, true);
-    toast(this, app.t('demo.away', { n: formatNumber(earned), t: formatDuration(seconds, app.i18n.durationUnits()) }), 3200);
+  /** Done: claim the coins. Not done: point at where to do it. */
+  private tapTask() {
+    if (this.panel || this.tut.active) return;
+    const cafe = this.cafe;
+    const pick = this.barPick();
+    if (!pick) return;
+    if (pick.kind === 'info') {
+      this.taskBar.shake();
+      return;
+    }
+    if (pick.kind === 'order') {
+      const o = cafe.orders()[pick.index];
+      const r = cafe.claimOrder(pick.index);
+      if (r) {
+        measure('order', o.type, 'complete');
+        if (r.bonus > 0) {
+          measure('orders', 'day', 'complete');
+          // Every order of the day: free adoptions, waiting on the shop's adoption card.
+          save.data.tickets += r.bonus;
+          notice(this, app.t('toast.ordersDone'), 3200);
+        }
+        this.celebrateClaim(r.coins);
+        return;
+      }
+      // Not done: show the machine of the item to sell; other orders are about playing as usual.
+      const top = o.item ? this.floors[cafe.floorIndexOf(o.item)].machineTop(o.item) : null;
+      if (top) burst(this, top.x, top.y + 20, 0xffd34d, 14, 300);
+      else this.taskBar.shake();
+      return;
+    }
+    const t = pick.task;
+    if (cafe.taskDone(t)) {
+      measure('task', t.id, 'complete');
+      this.celebrateClaim(cafe.claimTask());
+      return;
+    }
+    let pointed = false;
+    if (t.type === 'itemLevel') pointed = this.shop.pulse(`item:${t.item}`);
+    else if (t.type === 'upgrade') pointed = this.shop.pulse(`up:${t.upgrade}`);
+    else if (t.type === 'adopts' || t.type === 'staff') pointed = this.shop.pulse('adopt');
+    else if (t.type === 'seats') pointed = this.shop.pulse(`seat:${content.cafe.floors.findIndex((f) => f.id === t.floor)}`);
+    else if (t.type === 'unlock') {
+      const f = this.floors[cafe.floorIndexOf(t.item!)];
+      const r = f.lockRect(t.item!) ?? f.lockRect();
+      if (r) {
+        burst(this, r.x, r.y, 0xffd34d, 14, 300);
+        pointed = true;
+      }
+    } else if (t.type === 'floor') {
+      const i = content.cafe.floors.findIndex((f) => f.id === t.floor);
+      const r = this.floors[i]?.lockRect();
+      if (r) {
+        burst(this, r.x, r.y, 0xffd34d, 14, 300);
+        pointed = true;
+      }
+    } else if (t.type === 'decor' && cafe.s.mode === 'main') {
+      this.showPanel(() => showDecor(this, cafe, () => this.applyDecor(), () => this.panelClosed()));
+      pointed = true;
+    }
+    if (!pointed) this.taskBar.shake();
   }
 
-  private refresh() {
-    const d = save.data;
-    this.coinsText.setText(formatNumber(d.coins));
-    this.rateText.setText(app.t('demo.perSecond', { n: formatNumber(d.perSecond) }));
-    this.buyTap.setLabel(`${app.t('demo.upgradeTap')}  ·  ${formatNumber(this.cost('tap'))}`);
-    this.buyAuto.setLabel(`${app.t('demo.upgradeAuto')}  ·  ${formatNumber(this.cost('auto'))}`);
-    this.buyTap.setEnabled(d.coins >= this.cost('tap'));
-    this.buyAuto.setEnabled(d.coins >= this.cost('auto'));
+  // ---------- panels ----------
+
+  private showPanel(open: () => Panel | null) {
+    if (this.panel) {
+      this.queue.push(open);
+      return;
+    }
+    this.stopPlay();
+    this.panel = open();
+  }
+
+  private panelClosed() {
+    this.panel = null;
+    const next = this.queue.shift();
+    if (next) {
+      // Found 22/10: in this gap the day's news slipped out under the Snow Fox reveal.
+      this.panelDue = true;
+      this.time.delayedCall(150, () => {
+        this.panelDue = false;
+        this.showPanel(next);
+      });
+    } else this.time.delayedCall(0, () => this.resumePlay());
+    this.shop.refresh(true);
+  }
+
+  /** A window opens: the player stops playing (Poki: gameplayStop at every interruption). */
+  private stopPlay() {
+    app.gameplay.stop();
+  }
+
+  /**
+   * Back to the cafe after a window: commercialBreak, then gameplayStart (Poki guide 5.2).
+   * Before the first tap nothing is sent; the first tap starts play.
+   */
+  private async resumePlay() {
+    if (this.panel || !this.playStarted || this.leaving) return;
+    await breakAd('navigation');
+    if (!this.panel && this.scene.isActive()) app.gameplay.start();
+  }
+
+  private openMenu() {
+    if (this.panel) return;
+    const timed = this.cafe.s.mode === 'timed';
+    const entries = [
+      { label: app.t('menu.resume'), icon: icons.playIcon, onClick: () => undefined },
+      { label: app.audio.muted ? app.t('menu.soundOff') : app.t('menu.soundOn'), icon: app.audio.muted ? icons.soundOffIcon : icons.soundOnIcon, onClick: () => app.audio.toggle() },
+      {
+        label: app.t('menu.staff'),
+        icon: bookIcon,
+        onClick: () => this.showPanel(() => showStaffBook(this, this.cafe, () => this.panelClosed())),
+      },
+      ...(timed
+        ? []
+        : [
+            {
+              label: app.t('menu.decor'),
+              icon: plantIcon,
+              onClick: () => this.showPanel(() => showDecor(this, this.cafe, () => this.applyDecor(), () => this.panelClosed())),
+            },
+            { label: app.t('menu.daily'), icon: icons.giftIcon, badge: dailyClaimable(), onClick: () => this.openDailyPanel() },
+          ]),
+      ...(save.data.firstFinishMs > 0 && !timed ? [{ label: app.t('menu.timed'), icon: stopwatchIcon, onClick: () => this.startTimed() }] : []),
+      ...(save.data.records.length ? [{ label: app.t('menu.records'), icon: trophyIcon, onClick: () => this.showPanel(() => showRecords(this, null, () => this.panelClosed())) }] : []),
+      { label: app.t('menu.language', { lang: app.i18n.nameOf(app.i18n.lang) }), icon: globeIcon, onClick: () => this.showPanel(() => this.languagePanel()) },
+      timed
+        ? { label: app.t('menu.leaveTimed'), icon: icons.homeIcon, onClick: () => this.leaveTimed() }
+        : app.menuKey
+          ? { label: app.t('menu.home'), icon: icons.homeIcon, onClick: () => app.toMenu() }
+          : null,
+    ].filter((e): e is NonNullable<typeof e> => e !== null);
+    // The menu closes before its entry runs, so an entry can open the next panel right away;
+    // play resumes only when no other window took its place.
+    this.stopPlay();
+    this.panel = showGameMenu(this, entries, () => {
+      this.panel = null;
+      this.time.delayedCall(0, () => {
+        if (!this.panel) this.panelClosed();
+      });
+    });
+  }
+
+  /** Every language by its own name; the current one is marked. Picking one restarts the scene in that language. */
+  private languagePanel(): Panel {
+    const current = app.i18n.lang;
+    const entries = app.i18n.languages.map((lang) => ({
+      label: lang === current ? `${app.i18n.nameOf(lang)}  ✓` : app.i18n.nameOf(lang),
+      onClick: () => {
+        if (lang === current) return;
+        measure('language', lang, 'select');
+        this.leaving = true;
+        this.stopPlay();
+        save.flush();
+        void app.setLanguage(lang).then(() => this.scene.restart());
+      },
+    }));
+    return showGameMenu(this, entries, () => this.panelClosed(), app.t('core.language'));
+  }
+
+  private applyDecor() {
+    const owned = new Set(save.data.decor);
+    for (const f of this.floors) {
+      f.decor = decorContent.items.filter((d) => d.floor === f.id && owned.has(d.id)).map((d) => ({ id: d.id, slot: d.slot }));
+      f.refreshRoom();
+    }
+    if (this.cafe.s.mode === 'main') {
+      this.cafe.extraTips = decorTipMult(decorContent, save.data.decor);
+      this.cafe.decorCount = save.data.decor.length;
+    }
+  }
+
+  /** Set while the scene restarts into another run: nothing may resume play meanwhile. */
+  private leaving = false;
+
+  private startTimed() {
+    this.leaving = true;
+    this.stopPlay();
+    if (this.cafe.s.mode === 'main') save.data.mainLeftAt = Date.now();
+    save.data.timed = newRunState(content, 'timed', app.rng.int(1, 2 ** 31 - 1));
+    save.data.mode = 'timed';
+    measure('timed', 'run', 'start');
+    save.flush();
+    void breakAd('navigation').then(() => this.scene.restart());
+  }
+
+  private leaveTimed() {
+    this.leaving = true;
+    this.stopPlay();
+    save.data.mode = 'main';
+    save.data.timed = null;
+    save.flush();
+    this.scene.restart();
+  }
+
+  /** Coming back: helpers' earnings while away, then the daily gift. */
+  private welcome() {
+    const cafe = this.cafe;
+    if (cafe.s.mode !== 'main') return;
+    // Up to a day: the cafe's own cap (offline hours with Pantry and Night Shift) applies below.
+    let away = secondsAway(save.lastSavedAt, Date.now(), 24 * 3600);
+    if (save.data.mainLeftAt > 0) {
+      away = Math.max(away, (Date.now() - save.data.mainLeftAt) / 1000);
+      save.data.mainLeftAt = 0;
+    }
+    const amount = cafe.offlineIncome(away);
+    if (amount > 0) {
+      this.showPanel(() =>
+        showOfflinePanel(this, {
+          seconds: Math.min(away, cafe.stat('offlineHours') * 3600),
+          amount,
+          adMultiplier: content.cafe.rewarded.offlineMult,
+          icon: coinIcon,
+          iconColor: COIN_COLOR,
+          onCollect: (n) => {
+            cafe.addCoins(n, false);
+            save.flush();
+            this.time.delayedCall(0, () => this.panelClosed());
+          },
+        }),
+      );
+    }
+    // Not during the first-time tutorial: the first minute is for serving (CLAUDE.md 4.2).
+    if (this.done('upgrade') && takeDailyOffer()) this.openDailyPanel();
+  }
+
+  /** The 7-day gift; animals it brings (day 3, day 7) are shown one by one after it closes. */
+  private openDailyPanel() {
+    this.showPanel(() =>
+      openDaily(
+        this,
+        this.cafe,
+        () => this.refreshHud(),
+        () => this.panelClosed(),
+        (gifts) => {
+          for (const g of gifts) this.showPanel(() => showAdoptReveal(this, this.cafe, g, () => this.panelClosed()));
+          this.shop.refresh(true);
+        },
+      ),
+    );
+  }
+
+  // ---------- tutorial ----------
+
+  private done(id: string) {
+    return save.data.tutorial.includes(id);
+  }
+
+  private queueOnce(id: string, steps: TutorialStep[]) {
+    if (this.done(id) || this.queued.has(id)) return;
+    this.queued.add(id);
+    this.tut.queue(steps);
+  }
+
+  private queued = new Set<string>();
+
+  private startIntro() {
+    if (this.cafe.s.mode !== 'main') return;
+    const cafe = this.cafe;
+    const firstCoffee = () => cafe.s.customers.find((c) => c.floor === 0 && c.phase === 'wait');
+    this.queueOnce('make', [
+      {
+        id: 'make',
+        text: app.t('tut.make'),
+        target: () => this.floors[0].machineRect('coffee'),
+        done: () => cafe.s.items.coffee.ready > 0 || cafe.s.served > 0,
+      },
+    ]);
+    this.queueOnce('serve', [
+      {
+        id: 'serve',
+        text: app.t('tut.serve'),
+        target: () => {
+          const c = firstCoffee();
+          return c ? this.floors[0].customerRect(c.id) : null;
+        },
+        done: () => cafe.s.served > 0,
+      },
+    ]);
+  }
+
+  /** Steps that appear when something new shows up (CLAUDE.md 4.2). */
+  private checkTriggers() {
+    if (this.panel || this.tut.active || this.cafe.s.mode !== 'main' || !this.done('serve')) return;
+    // Not between two queued windows either (the toast would sit on the next one's button).
+    if (this.dayNews && !this.finishing && !this.panelDue && this.queue.length === 0) {
+      notice(this, this.dayNews, 3600);
+      this.dayNews = null;
+    }
+    const cafe = this.cafe;
+    const s = cafe.s;
+    if (!this.done('upgrade') && s.coins >= cafe.itemLevelCost('coffee')) {
+      this.queueOnce('upgrade', [
+        {
+          id: 'upgrade',
+          text: app.t('tut.upgrade'),
+          target: () => {
+            this.shop.reveal('item:coffee');
+            return this.shop.cardRect('item:coffee');
+          },
+          done: () => s.items.coffee.level >= 2,
+        },
+      ]);
+      return;
+    }
+    if (!this.done('tea') && !s.items.tea.unlocked && s.coins >= cafe.item('tea').unlockCost) {
+      this.queueOnce('tea', [{ id: 'tea', text: app.t('tut.tea'), target: () => this.floors[0].lockRect('tea'), done: () => s.items.tea.unlocked }]);
+      return;
+    }
+    if (!this.done('adopt') && cafe.staffCount() === 0 && s.coins >= cafe.adoptCost() && this.shop.cardRect('adopt') !== undefined) {
+      this.queueOnce('adopt', [
+        {
+          id: 'adopt',
+          text: app.t('tut.adopt'),
+          target: () => {
+            this.shop.reveal('adopt');
+            return this.shop.cardRect('adopt');
+          },
+          done: () => cafe.staffCount() > 0,
+        },
+      ]);
+      return;
+    }
+    if (this.done('adopt') && !this.done('helper') && cafe.staffCount() > 0 && !this.panel) {
+      this.queueOnce('helper', [{ id: 'helper', text: app.t('tut.helper'), ack: app.t('tut.gotIt') }]);
+      return;
+    }
+    const vip = s.customers.find((c) => c.vip && c.phase === 'wait');
+    if (!this.done('vip') && vip) {
+      this.queueOnce('vip', [
+        {
+          id: 'vip',
+          text: app.t('tut.vip'),
+          target: () => this.floors[vip.floor].customerRect(vip.id),
+          done: () => !s.customers.some((c) => c.id === vip.id && c.phase === 'wait'),
+          block: false,
+        },
+      ]);
+      return;
+    }
+    if (!this.done('bakery') && !s.floors[1].open && s.coins >= content.cafe.floors[1].unlockCost) {
+      this.queueOnce('bakery', [{ id: 'bakery', text: app.t('tut.bakery'), target: () => this.floors[1].lockRect(), done: () => s.floors[1].open }]);
+      return;
+    }
+    if (!this.done('rush') && this.done('helper') && this.boost()?.id === 'rush' && this.boost()!.wait <= 0 && !this.boost()!.blocked) {
+      this.queueOnce('rush', [
+        {
+          id: 'rush',
+          text: app.t('tut.rush'),
+          target: () => {
+            this.shop.reveal(BOOST_CARD);
+            return this.shop.cardRect(BOOST_CARD);
+          },
+          ack: app.t('tut.gotIt'),
+          block: false,
+        },
+      ]);
+    }
   }
 }

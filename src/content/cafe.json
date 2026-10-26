@@ -1,0 +1,220 @@
+{
+  "floors": [
+    {
+      "id": "coffee",
+      "unlockCost": 0,
+      "spawnEvery": 2.7,
+      "startSeats": 2,
+      "maxSeats": 4,
+      "seatCosts": [
+        120,
+        1500
+      ]
+    },
+    {
+      "id": "bakery",
+      "unlockCost": 35000,
+      "spawnEvery": 3.4,
+      "startSeats": 2,
+      "maxSeats": 4,
+      "seatCosts": [
+        150000,
+        1200000
+      ]
+    },
+    {
+      "id": "dessert",
+      "unlockCost": 25000000,
+      "spawnEvery": 3.8,
+      "startSeats": 2,
+      "maxSeats": 4,
+      "seatCosts": [
+        40000000,
+        300000000
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "coffee",
+      "floor": "coffee",
+      "value": 2,
+      "makeTime": 1.6,
+      "unlockCost": 0,
+      "levelCost": 16,
+      "levelGrowth": 1.17
+    },
+    {
+      "id": "tea",
+      "floor": "coffee",
+      "value": 12,
+      "makeTime": 2.4,
+      "unlockCost": 200,
+      "levelCost": 120,
+      "levelGrowth": 1.17
+    },
+    {
+      "id": "croissant",
+      "floor": "bakery",
+      "value": 120,
+      "makeTime": 3,
+      "unlockCost": 0,
+      "levelCost": 4800,
+      "levelGrowth": 1.18
+    },
+    {
+      "id": "cake",
+      "floor": "bakery",
+      "value": 800,
+      "makeTime": 3.8,
+      "unlockCost": 400000,
+      "levelCost": 48000,
+      "levelGrowth": 1.18
+    },
+    {
+      "id": "icecream",
+      "floor": "dessert",
+      "value": 9000,
+      "makeTime": 4.5,
+      "unlockCost": 0,
+      "levelCost": 720000,
+      "levelGrowth": 1.19
+    },
+    {
+      "id": "bubbletea",
+      "floor": "dessert",
+      "value": 60000,
+      "makeTime": 5.5,
+      "unlockCost": 150000000,
+      "levelCost": 6000000,
+      "levelGrowth": 1.19
+    }
+  ],
+  "milestones": [
+    {
+      "level": 10,
+      "value": 2
+    },
+    {
+      "level": 25,
+      "value": 2,
+      "speed": 1.25
+    },
+    {
+      "level": 50,
+      "value": 2
+    },
+    {
+      "level": 75,
+      "value": 2,
+      "speed": 1.25
+    },
+    {
+      "level": 100,
+      "value": 3
+    },
+    {
+      "level": 150,
+      "value": 3,
+      "speed": 1.25
+    },
+    {
+      "level": 200,
+      "value": 4
+    }
+  ],
+  "maxLevel": 200,
+  "levelCapBeforeLastFloor": 50,
+  "counterCap": 2,
+  "customers": {
+    "walkIn": 1.4,
+    "leave": 1,
+    "patience": 22
+  },
+  "tap": {
+    "boost": 0.45
+  },
+  "staff": {
+    "deliverTime": 1.1,
+    "pickupDelay": 1
+  },
+  "vip": {
+    "everyMin": 35,
+    "everyMax": 60,
+    "patience": 14,
+    "bonusSeconds": 12,
+    "firstAfter": 50
+  },
+  "goals": [
+    {
+      "id": "serve",
+      "served": 20
+    },
+    {
+      "id": "bakery",
+      "floor": "bakery"
+    },
+    {
+      "id": "staff",
+      "staff": 4
+    },
+    {
+      "id": "dessert",
+      "floor": "dessert"
+    },
+    {
+      "id": "bubbletea",
+      "itemLevel": "bubbletea",
+      "level": 25
+    }
+  ],
+  "offline": {
+    "efficiency": 0.5,
+    "capHours": 2,
+    "minSeconds": 60
+  },
+  "rush": {
+    "seconds": 60,
+    "mult": 2
+  },
+  "handBonus": 1.5,
+  "special": {
+    "mult": 2
+  },
+  "daily": [
+    {
+      "coinsMin": 2
+    },
+    {
+      "coinsMin": 4
+    },
+    {
+      "rarePal": 1
+    },
+    {
+      "coinsMin": 6
+    },
+    {
+      "coinsMin": 8
+    },
+    {
+      "ticket": 1
+    },
+    {
+      "coinsMin": 12,
+      "animal": "snowfox"
+    }
+  ],
+  "rewarded": {
+    "cooldown": 300,
+    "freeUpgradeCooldown": 265,
+    "freeUpgradeWindow": 150,
+    "offlineMult": 2,
+    "dailyMult": 2,
+    "afterBuys": {
+      "rush": 0,
+      "freeAdopt": 0,
+      "freeUpgrade": 3
+    }
+  }
+}

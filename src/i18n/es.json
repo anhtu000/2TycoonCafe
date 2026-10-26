@@ -1,0 +1,277 @@
+{
+  "lang": {
+    "name": "Español"
+  },
+  "core": {
+    "loading": "Cargando",
+    "play": "Jugar",
+    "continue": "Continuar",
+    "resume": "Reanudar",
+    "paused": "En pausa",
+    "menu": "Menú principal",
+    "sound": "Sonido",
+    "on": "Sí",
+    "off": "No",
+    "language": "Idioma",
+    "adUnavailable": "No hay anuncios ahora mismo. Inténtalo más tarde.",
+    "adBlocked": "Los anuncios están bloqueados, así que esta recompensa no está disponible.",
+    "readyIn": "Listo en {t}",
+    "welcomeBack": "¡Bienvenido de nuevo!",
+    "awayFor": "Estuviste fuera {t}",
+    "collect": "Recoger",
+    "collectDouble": "Recoger x{n}",
+    "dailyTitle": "Regalo diario",
+    "dayN": "Día {n}",
+    "claim": "Cobrar",
+    "claimDouble": "Cobrar x{n}",
+    "comeBack": "Vuelve mañana para el día {n}",
+    "close": "Cerrar"
+  },
+  "unit": {
+    "d": "d",
+    "h": "h",
+    "m": "m",
+    "s": "s"
+  },
+  "item": {
+    "coffee": "Café",
+    "tea": "Té matcha",
+    "croissant": "Cruasán",
+    "cake": "Tarta de fresa",
+    "icecream": "Helado",
+    "bubbletea": "Bubble tea"
+  },
+  "floor": {
+    "coffee": "Rincón del café",
+    "bakery": "Panadería",
+    "dessert": "Barra de postres",
+    "later": "Abre primero la planta de abajo"
+  },
+  "animal": {
+    "capybara": "Capibara",
+    "hamster": "Hámster",
+    "bunny": "Conejo",
+    "cat": "Gato",
+    "shiba": "Shiba",
+    "penguin": "Pingüino",
+    "koala": "Koala",
+    "redpanda": "Panda rojo",
+    "panda": "Panda",
+    "axolotl": "Ajolote",
+    "snowfox": "Zorro de las nieves"
+  },
+  "rarity": {
+    "common": "Común",
+    "rare": "Raro",
+    "epic": "Épico",
+    "legendary": "Legendario"
+  },
+  "perk": {
+    "speed": "Trabaja un {n}% más rápido",
+    "tips": "Propinas +{n}%",
+    "base": "Velocidad x{n}"
+  },
+  "upgrade": {
+    "smile": {
+      "name": "Sonrisa amable",
+      "desc": "Más propina cuando sirves tú"
+    },
+    "hands": {
+      "name": "Manos rápidas",
+      "desc": "Cada toque en una máquina rinde más"
+    },
+    "sign": {
+      "name": "Cartel acogedor",
+      "desc": "Los clientes vienen más a menudo"
+    },
+    "chairs": {
+      "name": "Sillas cómodas",
+      "desc": "Los clientes esperan más"
+    },
+    "tipjar": {
+      "name": "Bote de propinas",
+      "desc": "Cada cliente paga más"
+    },
+    "training": {
+      "name": "Formación",
+      "desc": "Los ayudantes trabajan más rápido"
+    },
+    "pantry": {
+      "name": "Gran despensa",
+      "desc": "Ganas más tiempo si no estás"
+    },
+    "nightshift": {
+      "name": "Turno de noche",
+      "desc": "+2 horas de ganancias si no estás"
+    }
+  },
+  "shop": {
+    "level": "Nv. {n}",
+    "max": "MÁX",
+    "free": "Gratis",
+    "itemDesc": "Cada pedido paga más",
+    "itemNext": "x{n} en nv. {l}",
+    "adopt": "Adopta un ayudante",
+    "adoptDesc": "Un animal nuevo para tu equipo",
+    "adoptDup": "Encuentra ayudantes más raros",
+    "seat": "Asiento extra",
+    "seatDesc": "{floor}: un cliente más",
+    "capped": "Más niveles tras abrir: {floor}",
+    "special": "Plato del día: monedas x{n}"
+  },
+  "boost": {
+    "rush": "Hora punta",
+    "rushDesc": "Monedas x2 durante 60 s",
+    "rushOn": "Activa: quedan {t}",
+    "adopt": "Ayudante gratis",
+    "adoptDesc": "Adopta un animal gratis",
+    "upgrade": "Mejora gratis"
+  },
+  "hud": {
+    "perSec": "+{n}/s",
+    "goal": {
+      "serve": "Sirve a {n} clientes",
+      "bakery": "Abre la Panadería",
+      "staff": "Contrata {n} ayudantes",
+      "dessert": "Abre la Barra de postres",
+      "bubbletea": "Bubble tea a nv. {n}"
+    },
+    "allStars": "¡Café de cinco estrellas!",
+    "rush": "Hora punta x2  {t}",
+    "timed": "Contrarreloj"
+  },
+  "tut": {
+    "make": "Toca la cafetera",
+    "serve": "Toca al cliente para servir",
+    "upgrade": "Mejora el café",
+    "tea": "Añade té matcha",
+    "adopt": "Adopta un ayudante",
+    "helper": "¡Los ayudantes trabajan por ti!",
+    "vip": "¡VIP! Sírvele tú",
+    "bakery": "Abre la Panadería",
+    "seat": "Más asientos, más clientes",
+    "rush": "Monedas dobles durante un minuto",
+    "gotIt": "Entendido",
+    "notReady": "Toca primero la máquina",
+    "space": "Consejo: toca rápido para preparar antes"
+  },
+  "adopt": {
+    "title": "¡Nuevo ayudante!",
+    "levelUp": "¡Sube de nivel!",
+    "maxed": "Ya está al nivel máximo: +{n} monedas",
+    "worksAt": "Trabaja en: {item}",
+    "resting": "Descansando (puestos llenos)",
+    "odds": "{r} · 1 de cada {n}",
+    "ok": "¡Genial!",
+    "gift": "{r} · regalo del día 7"
+  },
+  "book": {
+    "title": "Equipo",
+    "odds": "Probabilidad por adopción",
+    "pityEpic": "Épico o mejor en {n}",
+    "pityLegend": "Legendario en {n}",
+    "unknown": "???",
+    "level": "Nv. {n}",
+    "daily7": "Regalo del día 7"
+  },
+  "star": {
+    "got": "¡Nueva estrella!",
+    "next": "Siguiente: {goal}"
+  },
+  "finish": {
+    "title": "¡Café de cinco estrellas!",
+    "timedTitle": "¡Partida completada!",
+    "time": "Tiempo: {t}",
+    "served": "Clientes servidos: {n}",
+    "staff": "Ayudantes: {n} de {m}",
+    "best": "Récord: {t}",
+    "newBest": "¡Nuevo récord!",
+    "keep": "Seguir jugando",
+    "timed": "Contrarreloj",
+    "again": "Otra vez",
+    "back": "Volver a mi café",
+    "firstNote": "Vuelve cada día: ¡3 pedidos nuevos y un plato del día!"
+  },
+  "menu": {
+    "title": "Menú",
+    "continue": "Continuar",
+    "resume": "Volver al café",
+    "staff": "Equipo",
+    "decor": "Decoración",
+    "timed": "Contrarreloj",
+    "records": "Récords",
+    "daily": "Regalo diario",
+    "home": "Inicio",
+    "leaveTimed": "Salir de la contrarreloj",
+    "soundOn": "Sonido: sí",
+    "soundOff": "Sonido: no",
+    "language": "Idioma: {lang}"
+  },
+  "decor": {
+    "title": "Decoración",
+    "info": "Cada adorno: +3% de propinas",
+    "ad": "Gratis: {item}",
+    "fern": "Helecho",
+    "clock": "Reloj de pared",
+    "lamp": "Lámpara colgante",
+    "frame": "Cuadro de paisaje",
+    "cactus": "Cactus",
+    "bunting": "Banderines",
+    "shelf": "Estante de tarros",
+    "poster": "Póster de tarta",
+    "monstera": "Monstera",
+    "lights": "Guirnalda de luces",
+    "neon": "Corazón de neón",
+    "aquarium": "Acuario"
+  },
+  "daily": {
+    "coins": "{n} min",
+    "ticket": "Ayudante",
+    "rarePal": "Amigo raro",
+    "fox": "Zorro"
+  },
+  "records": {
+    "title": "Récords",
+    "empty": "Termina una contrarreloj para conseguir un récord",
+    "row": "{i}. {t}"
+  },
+  "toast": {
+    "vip": "¡Propina VIP! +{n}",
+    "ticket": "Ayudante gratis listo en la tienda",
+    "floorOpen": "¡{floor} abierta!",
+    "itemNew": "¡{item} ya está en el menú!",
+    "away": "Tus ayudantes ganaron {n} mientras no estabas",
+    "milestone": "¡{item} x{n} en nv. {l}!",
+    "newDay": "¡Pedidos nuevos! Plato del día: {item} x{n}",
+    "ordersDone": "¡Pedidos completos! Ayudante gratis en la tienda",
+    "gift": "¡{name} se une al café!",
+    "giftLevel": "¡{name} nv. {n}!"
+  },
+  "task": {
+    "claim": "Cobrar",
+    "served": "Sirve a {n} clientes",
+    "vip1": "Sirve a un VIP",
+    "vips": "Sirve a {n} VIP",
+    "itemLevel": "{item} a nv. {n}",
+    "unlock": "Añade: {item}",
+    "seats": "{floor}: {n} asientos",
+    "upgrade1": "Compra: {name}",
+    "upgrade": "{name} nv. {n}",
+    "adopts": "Adopta {n} veces",
+    "staff": "Contrata {n} ayudantes",
+    "decor1": "Compra un adorno",
+    "decor": "Ten {n} adornos",
+    "earned": "Gana {n} monedas",
+    "floor": "Abre: {floor}"
+  },
+  "order": {
+    "served": "Hoy: sirve a {n} clientes",
+    "hand": "Hoy: sirve {n} tú mismo",
+    "vips": "Hoy: sirve a {n} VIP",
+    "sold": "Hoy: vende {n} × {item}",
+    "special": "Hoy: vende {n} × {item}",
+    "buys": "Hoy: {n} compras",
+    "sales": "Hoy: gana {n}",
+    "tomorrow": "Pedidos nuevos mañana"
+  }
+}

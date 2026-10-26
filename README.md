@@ -1,8 +1,30 @@
-# 2TycoonCafe
+# 2TycoonCafe – Tiny Tails Cafe Tycoon
 
-Game HTML5 cho web portal (CrazyGames trước). Phaser 4 + TypeScript, dựng bằng Vite. Quyết định chung của dự án nằm trong `CLAUDE.md` của project Game Making trên claude.ai.
+Game #2: tycoon 2D, quán cozy 3 tầng do thú vận hành (CLAUDE.md mục 5, 5a). Đường phát hành: thử Poki trước. Phaser 4 + TypeScript, dựng bằng Vite.
 
-Hiện repo chứa bộ khung chung (`core/`) và một màn demo (`src/`) để kiểm tra bộ khung. Code game thật sẽ thay màn demo.
+## Code của game (`src/`)
+
+| Chỗ | Việc |
+| --- | --- |
+| `src/content/*.json` | Mọi con số: tầng, món, mốc cấp, giới hạn cấp trước Dessert Bar, khách, thú (Snow Fox chỉ có từ quà ngày 7), nâng cấp (Night Shift mở sau 5 sao), quà 7 ngày, món của ngày, quảng cáo (`cafe.json`, `staff.json`, `upgrades.json`, `decor.json`); chuỗi nhiệm vụ ngắn và nhiệm vụ ngày sau 5 sao (`tasks.json`: `tasks` mỗi lúc một nhiệm vụ, `orders` 3 nhiệm vụ mỗi ngày, thưởng theo giây thu nhập) |
+| `src/logic/cafe.ts` | Toàn bộ kinh tế một lượt chơi, không dùng Phaser. Màn chơi và bộ mô phỏng cùng chạy class `Cafe` |
+| `src/logic/daily.ts` | Luật chuỗi quà 7 ngày của game này: bỏ lỡ ngày thì chuỗi dừng chờ, không về ngày 1 (bộ khung `core/` giữ luật về ngày 1 cho game #1) |
+| `src/logic/cafe.test.ts`, `daily.test.ts` | Test logic (chạy bằng `npm test`) |
+| `src/render/` | Vẽ thú, món, máy, phòng, đồ trang trí bằng Canvas 2D rồi lưu thành texture |
+| `src/ui/Floor.ts` | Một tầng quán: vẽ theo trạng thái mỗi khung hình |
+| `src/ui/ShopList.ts` | Dải nâng cấp (dọc trên máy tính, ngang trên điện thoại) |
+| `src/ui/panels.ts` | Bảng nhận nuôi, Staff, menu, Decor, kỷ lục, về đích |
+| `src/scenes/PlayScene.ts`, `HomeScene.ts` | Màn chơi và màn menu cho người đã có save |
+| `src/i18n/*.json` | Chữ trong game, 6 ngôn ngữ: en, fr, it, de, es, tr (kể cả chữ của `core/` mà `core/` chưa dịch). Trên Poki ngôn ngữ lấy từ `PokiSDK.getLanguage()` (`src/main.ts`); người chơi đổi trong menu. `src/i18n/i18n.test.ts` kiểm đủ khoá và đúng `{biến}`. Bản dịch do Claude làm, cần người bản ngữ đọc lại |
+| `src/game/music.ts` | Nhạc nền: tải sau khi vào quán, lặp liền, theo nút tắt tiếng |
+| `src/game/page.ts` | Chặn phím cuộn trang portal ngay từ lúc tải: mũi tên, Space, PageUp/PageDown, **Home, End** và con lăn. `core/` chỉ chặn sau khi game chạy và chưa chặn Home/End; sửa ở đây để không đụng game #1 |
+| `src/game/measure.ts` | Sự kiện phễu cho Poki (`PokiSDK.measure`, chỉ bản Poki): từng bước hướng dẫn, sao, nhiệm vụ, mở tầng và món, thú mới, quà ngày, đơn hàng ngày, trang trí, lượt tính giờ, đổi ngôn ngữ |
+| `src/ui/notice.ts` | Thông báo cuối màn hình theo hàng đợi, không bao giờ đè lên nhau (thay `toast` của `core/` trong code game; cùng hình dáng) |
+| `index.html` | Màn tải trước khi code game tải xong: tên game, cốc cà phê, thanh chạy (viết thẳng trong file, không tải thêm) |
+| `store/poki_listing.md` | Nội dung trang game trên Poki: tên, thể loại, mô tả, điểm khác biệt, điều khiển, lộ trình cập nhật |
+| `src/game/presets.ts` | Trạng thái dựng sẵn để thử (chỉ bản web): `#staff`, `#dessert`, `#finish`, `#daily` (đã 5 sao: nhiệm vụ ngày, món của ngày, Night Shift), `#giftrare`, `#giftfox` (quà ngày 3, ngày 7), `#giftpause` (nhận ngày 5 cách đây 3 ngày: hôm nay là ngày 6); `#reset` xoá save thử |
+| `tools/make_sfx.py`, `tools/make_music.py` | Tạo tiếng hiệu ứng và nhạc nền (vòng lặp liền, `music.ogg` cho Chrome/Firefox/Android, `music.mp3` cho Safari) bằng code: `python3 tools/make_music.py public/audio` (cần numpy, scipy, ffmpeg) |
+| `tools/sim/` | Mô phỏng kinh tế: `npm run sim` (200 lượt mỗi kiểu người chơi), `npm run sim:quick -- 1000 active none` (một lượt chi tiết theo phút), `npm run sim:pacing` (nhịp theo phút: số lần chạm, đưa món, mua, nhiệm vụ, thứ mới, thời gian không có việc; 3 kiểu người chơi × không quảng cáo / Poki / xem mọi quảng cáo; thêm `--json out.json` để xuất số liệu), `npm run sim:daily` (7 ngày sau 5 sao: mỗi ngày vắng 20 giờ rồi chơi 12 phút; nhiệm vụ ngày xong lúc nào, thu nhập khi vắng, quà 7 ngày; `--session 12 --away 20`) |
 
 ## Cài đặt
 
@@ -16,6 +38,12 @@ Hiện repo chứa bộ khung chung (`core/`) và một màn demo (`src/`) để
 | `npm run dev` | Chạy thử, không có SDK portal. Mở link `Local` trên máy tính |
 | `npm run dev:cg` | Chạy thử với SDK CrazyGames v3 ở chế độ local (quảng cáo hiện dòng chữ thay cho quảng cáo thật) |
 | `npm run build` | Build cho CrazyGames vào `dist/crazygames`, rồi kiểm tra kích thước và request ra ngoài |
+| `npm run build:poki` | Build cho Poki vào `dist/poki` (nạp Poki SDK v2 trong `<head>`); báo `FAIL` nếu tổng trên 8 MB |
+| `npm run dev:poki` | Chạy thử với Poki SDK (thử quảng cáo bằng Poki Inspector) |
+| `npm run build:single` | Gói bản web thành một file HTML (`dist/single/`) để mở trên điện thoại hoặc đăng artifact |
+| `npm run sim` | Mô phỏng kinh tế (CLAUDE.md mục 5a) |
+| `npm run sim:pacing` | Nhịp chơi theo phút và khoảng trống dài nhất (CLAUDE.md mục 5a) |
+| `npm run sim:daily` | Các ngày sau 5 sao: nhiệm vụ ngày, món của ngày, quà 7 ngày, Night Shift (CLAUDE.md mục 5a) |
 | `npm run build:web` | Build không có SDK vào `dist/web` (để đăng artifact, chạy thử trên điện thoại) |
 | `npm run preview` | Phục vụ bản build CrazyGames để thử |
 | `npm test` | Test các hàm định dạng số, thời gian, quà hằng ngày |
@@ -39,7 +67,7 @@ Tham số URL để thử (thêm vào cuối link, ví dụ `?debug&fps=144`):
 | `?ads=none` | Không có SDK quảng cáo, nút quảng cáo tự ẩn |
 | `?ads=basic` | Giả lập Basic Launch của CrazyGames: quảng cáo tắt, nút thưởng vẫn cho thưởng |
 | `?muteAudio=true` | Portal ép tắt tiếng, nút âm thanh bị khoá |
-| `?lang=ru` | Ép ngôn ngữ |
+| `?lang=de` | Ép ngôn ngữ (en, fr, it, de, es, tr) |
 
 ## Cấu trúc
 
@@ -47,7 +75,7 @@ Tham số URL để thử (thêm vào cuối link, ví dụ `?debug&fps=144`):
 core/        Bộ khung chung. Giống hệt nhau ở 2 repo
   app.ts       Khởi động game, các dịch vụ dùng chung (app.audio, app.save, app.ads, app.t ...)
   viewport.ts  Co giãn 16:9 và màn dọc, nét ở mọi devicePixelRatio
-  platform/    Adapter portal: crazygames.ts (SDK v3), local.ts (chạy thử, giả lập quảng cáo)
+  platform/    Adapter portal: crazygames.ts (SDK v3), poki.ts (SDK v2), local.ts (chạy thử, giả lập quảng cáo)
   ads.ts       Quảng cáo có thưởng và quảng cáo giữa chừng, tạm dừng và tắt tiếng khi chạy
   save.ts      Lưu tiến trình, tự lưu, đổi phiên bản dữ liệu
   i18n.ts      Chuỗi chữ theo ngôn ngữ, tự nhận ngôn ngữ (RU/BE/KK/UK/UZ dùng tiếng Nga)

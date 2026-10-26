@@ -1,0 +1,100 @@
+{
+  "upgrades": [
+    {
+      "id": "smile",
+      "stat": "handTip",
+      "op": "add",
+      "value": 0.25,
+      "max": 8,
+      "cost": 60,
+      "growth": 5,
+      "show": {
+        "served": 3
+      }
+    },
+    {
+      "id": "hands",
+      "stat": "tapBoost",
+      "op": "mul",
+      "value": 1.5,
+      "max": 6,
+      "cost": 150,
+      "growth": 6,
+      "show": {
+        "served": 6
+      }
+    },
+    {
+      "id": "sign",
+      "stat": "spawnMult",
+      "op": "mul",
+      "value": 0.88,
+      "max": 8,
+      "cost": 400,
+      "growth": 7,
+      "show": {
+        "served": 10
+      }
+    },
+    {
+      "id": "chairs",
+      "stat": "patience",
+      "op": "mul",
+      "value": 1.15,
+      "max": 5,
+      "cost": 2000,
+      "growth": 8,
+      "show": {
+        "served": 25
+      }
+    },
+    {
+      "id": "tipjar",
+      "stat": "tips",
+      "op": "mul",
+      "value": 1.25,
+      "max": 8,
+      "cost": 3000,
+      "growth": 9,
+      "show": {
+        "staff": 1
+      }
+    },
+    {
+      "id": "training",
+      "stat": "staffSpeed",
+      "op": "mul",
+      "value": 1.15,
+      "max": 8,
+      "cost": 20000,
+      "growth": 9,
+      "show": {
+        "staff": 2
+      }
+    },
+    {
+      "id": "pantry",
+      "stat": "offlineHours",
+      "op": "add",
+      "value": 1,
+      "max": 4,
+      "cost": 100000,
+      "growth": 10,
+      "show": {
+        "floor": "bakery"
+      }
+    },
+    {
+      "id": "nightshift",
+      "stat": "offlineHours",
+      "op": "add",
+      "value": 2,
+      "max": 2,
+      "cost": 20000000000,
+      "growth": 8,
+      "show": {
+        "stars": 5
+      }
+    }
+  ]
+}

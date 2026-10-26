@@ -48,3 +48,16 @@ write(f'{out}/buy.wav', mix((a, 0), (b, int(RATE * 0.07)), (pad([], int(RATE * 0
 notes = [784, 988, 1175, 1568]
 parts = [(tone(lambda p, f=f: f, 0.22, curve=3, harmonics=((1, 1), (2, 0.35))), int(RATE * 0.06 * i)) for i, f in enumerate(notes)]
 write(f'{out}/reward.wav', mix(*parts, (pad([], int(RATE * 0.45)), 0)))
+# --- Cafe sounds (game #2) ---
+# coin: small bell "ding" with metallic overtones, for a served customer
+write(f'{out}/coin.wav', mix(
+    (tone(lambda p: 1568, 0.35, curve=5, attack=0.002, harmonics=((1, 1), (2.76, 0.35), (5.4, 0.12))), 0),
+    (tone(lambda p: 2093, 0.3, curve=6, attack=0.002, harmonics=((1, 0.6), (2.76, 0.2))), int(RATE * 0.05)),
+    (pad([], int(RATE * 0.4)), 0)))
+# pop: a serving is ready, soft bubble with rising pitch
+write(f'{out}/pop.wav', tone(lambda p: 420 + 520 * p ** 0.5, 0.08, curve=2.5, attack=0.003, harmonics=((1, 1), (2, 0.15))))
+# sad: a customer gives up, two falling soft notes
+write(f'{out}/sad.wav', mix(
+    (tone(lambda p: 494 - 40 * p, 0.16, curve=2.5, harmonics=((1, 1), (2, 0.2))), 0),
+    (tone(lambda p: 392 - 50 * p, 0.24, curve=3, harmonics=((1, 1), (2, 0.2))), int(RATE * 0.13)),
+    (pad([], int(RATE * 0.4)), 0)))

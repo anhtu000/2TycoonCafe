@@ -1,0 +1,277 @@
+{
+  "lang": {
+    "name": "Français"
+  },
+  "core": {
+    "loading": "Chargement",
+    "play": "Jouer",
+    "continue": "Continuer",
+    "resume": "Reprendre",
+    "paused": "Pause",
+    "menu": "Menu principal",
+    "sound": "Son",
+    "on": "Activé",
+    "off": "Coupé",
+    "language": "Langue",
+    "adUnavailable": "Pas de pub pour le moment. Réessaie plus tard.",
+    "adBlocked": "Les pubs sont bloquées, cette récompense n'est pas disponible.",
+    "readyIn": "Prêt dans {t}",
+    "welcomeBack": "Bon retour !",
+    "awayFor": "Tu étais absent {t}",
+    "collect": "Récupérer",
+    "collectDouble": "Récupérer x{n}",
+    "dailyTitle": "Cadeau du jour",
+    "dayN": "Jour {n}",
+    "claim": "Récupérer",
+    "claimDouble": "Récupérer x{n}",
+    "comeBack": "Reviens demain pour le jour {n}",
+    "close": "Fermer"
+  },
+  "unit": {
+    "d": "j",
+    "h": "h",
+    "m": "m",
+    "s": "s"
+  },
+  "item": {
+    "coffee": "Café",
+    "tea": "Thé matcha",
+    "croissant": "Croissant",
+    "cake": "Gâteau aux fraises",
+    "icecream": "Glace",
+    "bubbletea": "Bubble tea"
+  },
+  "floor": {
+    "coffee": "Coin café",
+    "bakery": "Boulangerie",
+    "dessert": "Bar à desserts",
+    "later": "Ouvre d'abord l'étage du dessous"
+  },
+  "animal": {
+    "capybara": "Capybara",
+    "hamster": "Hamster",
+    "bunny": "Lapin",
+    "cat": "Chat",
+    "shiba": "Shiba",
+    "penguin": "Pingouin",
+    "koala": "Koala",
+    "redpanda": "Panda roux",
+    "panda": "Panda",
+    "axolotl": "Axolotl",
+    "snowfox": "Renard des neiges"
+  },
+  "rarity": {
+    "common": "Commun",
+    "rare": "Rare",
+    "epic": "Épique",
+    "legendary": "Légendaire"
+  },
+  "perk": {
+    "speed": "Travaille {n}% plus vite",
+    "tips": "Pourboires +{n}%",
+    "base": "Vitesse x{n}"
+  },
+  "upgrade": {
+    "smile": {
+      "name": "Sourire aimable",
+      "desc": "Plus de pourboires quand tu sers toi-même"
+    },
+    "hands": {
+      "name": "Mains rapides",
+      "desc": "Chaque appui sur une machine compte plus"
+    },
+    "sign": {
+      "name": "Enseigne douillette",
+      "desc": "Les clients viennent plus souvent"
+    },
+    "chairs": {
+      "name": "Chaises confortables",
+      "desc": "Les clients attendent plus longtemps"
+    },
+    "tipjar": {
+      "name": "Pot à pourboires",
+      "desc": "Chaque client paie plus"
+    },
+    "training": {
+      "name": "Formation",
+      "desc": "Les aides travaillent plus vite"
+    },
+    "pantry": {
+      "name": "Grand garde-manger",
+      "desc": "Gagne plus longtemps pendant ton absence"
+    },
+    "nightshift": {
+      "name": "Équipe de nuit",
+      "desc": "+2 h de gains pendant ton absence"
+    }
+  },
+  "shop": {
+    "level": "Niv. {n}",
+    "max": "MAX",
+    "free": "Gratuit",
+    "itemDesc": "Chaque service rapporte plus",
+    "itemNext": "x{n} au niv. {l}",
+    "adopt": "Adopter un aide",
+    "adoptDesc": "Un nouvel animal dans l'équipe",
+    "adoptDup": "Trouve des aides plus rares",
+    "seat": "Place en plus",
+    "seatDesc": "{floor} : un client de plus",
+    "capped": "Plus de niveaux après : {floor}",
+    "special": "Plat du jour : pièces x{n}"
+  },
+  "boost": {
+    "rush": "Coup de feu",
+    "rushDesc": "Pièces x2 pendant 60 s",
+    "rushOn": "Actif : encore {t}",
+    "adopt": "Aide gratuit",
+    "adoptDesc": "Adopte un animal gratuitement",
+    "upgrade": "Amélioration gratuite"
+  },
+  "hud": {
+    "perSec": "+{n}/s",
+    "goal": {
+      "serve": "Sers {n} clients",
+      "bakery": "Ouvre la Boulangerie",
+      "staff": "Embauche {n} aides",
+      "dessert": "Ouvre le Bar à desserts",
+      "bubbletea": "Bubble tea niv. {n}"
+    },
+    "allStars": "Café cinq étoiles !",
+    "rush": "Coup de feu x2  {t}",
+    "timed": "Course chrono"
+  },
+  "tut": {
+    "make": "Touche la machine à café",
+    "serve": "Touche le client pour le servir",
+    "upgrade": "Améliore le café",
+    "tea": "Ajoute le thé matcha",
+    "adopt": "Adopte un aide",
+    "helper": "Les aides travaillent pour toi !",
+    "vip": "VIP ! Sers-le toi-même",
+    "bakery": "Ouvre la Boulangerie",
+    "seat": "Plus de places, plus de clients",
+    "rush": "Pièces x2 pendant une minute",
+    "gotIt": "Compris",
+    "notReady": "Touche d'abord la machine",
+    "space": "Astuce : touche vite pour préparer plus vite"
+  },
+  "adopt": {
+    "title": "Nouvel aide !",
+    "levelUp": "Niveau supérieur !",
+    "maxed": "Déjà au niveau max : +{n} pièces",
+    "worksAt": "Poste : {item}",
+    "resting": "Au repos (tous les postes sont pris)",
+    "odds": "{r} · 1 sur {n}",
+    "ok": "Super !",
+    "gift": "{r} · cadeau du jour 7"
+  },
+  "book": {
+    "title": "Équipe",
+    "odds": "Chance par adoption",
+    "pityEpic": "Épique ou mieux d'ici {n}",
+    "pityLegend": "Légendaire d'ici {n}",
+    "unknown": "???",
+    "level": "Niv. {n}",
+    "daily7": "Cadeau du jour 7"
+  },
+  "star": {
+    "got": "Nouvelle étoile !",
+    "next": "Suivant : {goal}"
+  },
+  "finish": {
+    "title": "Café cinq étoiles !",
+    "timedTitle": "Course terminée !",
+    "time": "Temps : {t}",
+    "served": "Clients servis : {n}",
+    "staff": "Aides : {n} sur {m}",
+    "best": "Record : {t}",
+    "newBest": "Nouveau record !",
+    "keep": "Continuer",
+    "timed": "Course chrono",
+    "again": "Rejouer",
+    "back": "Retour au café",
+    "firstNote": "Reviens chaque jour : 3 nouvelles commandes et un plat du jour !"
+  },
+  "menu": {
+    "title": "Menu",
+    "continue": "Continuer",
+    "resume": "Retour au café",
+    "staff": "Équipe",
+    "decor": "Déco",
+    "timed": "Course chrono",
+    "records": "Records",
+    "daily": "Cadeau du jour",
+    "home": "Accueil",
+    "leaveTimed": "Quitter la course",
+    "soundOn": "Son : activé",
+    "soundOff": "Son : coupé",
+    "language": "Langue : {lang}"
+  },
+  "decor": {
+    "title": "Déco",
+    "info": "Chaque déco : +3 % de pourboires",
+    "ad": "Gratuit : {item}",
+    "fern": "Fougère",
+    "clock": "Horloge",
+    "lamp": "Suspension",
+    "frame": "Tableau paysage",
+    "cactus": "Cactus",
+    "bunting": "Fanions",
+    "shelf": "Étagère à bocaux",
+    "poster": "Affiche gâteau",
+    "monstera": "Monstera",
+    "lights": "Guirlande lumineuse",
+    "neon": "Cœur néon",
+    "aquarium": "Aquarium"
+  },
+  "daily": {
+    "coins": "{n} min",
+    "ticket": "Aide",
+    "rarePal": "Ami rare",
+    "fox": "Renard"
+  },
+  "records": {
+    "title": "Records",
+    "empty": "Termine une course chrono pour établir un record",
+    "row": "{i}. {t}"
+  },
+  "toast": {
+    "vip": "Pourboire VIP ! +{n}",
+    "ticket": "Aide gratuit prêt dans la boutique",
+    "floorOpen": "{floor} : c'est ouvert !",
+    "itemNew": "{item} est au menu !",
+    "away": "Tes aides ont gagné {n} pendant ton absence",
+    "milestone": "{item} x{n} au niv. {l} !",
+    "newDay": "Nouvelles commandes ! Plat du jour : {item} x{n}",
+    "ordersDone": "Commandes finies ! Aide gratuit dans la boutique",
+    "gift": "{name} rejoint le café !",
+    "giftLevel": "{name} niv. {n} !"
+  },
+  "task": {
+    "claim": "Récupérer",
+    "served": "Sers {n} clients",
+    "vip1": "Sers un VIP",
+    "vips": "Sers {n} VIP",
+    "itemLevel": "{item} niv. {n}",
+    "unlock": "Ajoute : {item}",
+    "seats": "{floor} : {n} places",
+    "upgrade1": "Achète : {name}",
+    "upgrade": "{name} niv. {n}",
+    "adopts": "Adopte {n} fois",
+    "staff": "Embauche {n} aides",
+    "decor1": "Achète une déco",
+    "decor": "Possède {n} décos",
+    "earned": "Gagne {n} pièces",
+    "floor": "Ouvre : {floor}"
+  },
+  "order": {
+    "served": "Aujourd'hui : sers {n} clients",
+    "hand": "Aujourd'hui : sers {n} toi-même",
+    "vips": "Aujourd'hui : sers {n} VIP",
+    "sold": "Aujourd'hui : vends {n} × {item}",
+    "special": "Aujourd'hui : vends {n} × {item}",
+    "buys": "Aujourd'hui : {n} achats",
+    "sales": "Aujourd'hui : gagne {n}",
+    "tomorrow": "Nouvelles commandes demain"
+  }
+}

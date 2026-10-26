@@ -1,0 +1,77 @@
+{
+  "bonusPerItem": 0.03,
+  "items": [
+    {
+      "id": "fern",
+      "slot": "plant",
+      "floor": "coffee",
+      "price": 3000
+    },
+    {
+      "id": "clock",
+      "slot": "wall",
+      "floor": "coffee",
+      "price": 8000
+    },
+    {
+      "id": "lamp",
+      "slot": "ceiling",
+      "floor": "coffee",
+      "price": 20000
+    },
+    {
+      "id": "frame",
+      "slot": "wall2",
+      "floor": "coffee",
+      "price": 45000
+    },
+    {
+      "id": "cactus",
+      "slot": "plant",
+      "floor": "bakery",
+      "price": 400000
+    },
+    {
+      "id": "bunting",
+      "slot": "ceiling",
+      "floor": "bakery",
+      "price": 1000000
+    },
+    {
+      "id": "shelf",
+      "slot": "wall",
+      "floor": "bakery",
+      "price": 2500000
+    },
+    {
+      "id": "poster",
+      "slot": "wall2",
+      "floor": "bakery",
+      "price": 6000000
+    },
+    {
+      "id": "monstera",
+      "slot": "plant",
+      "floor": "dessert",
+      "price": 60000000
+    },
+    {
+      "id": "lights",
+      "slot": "ceiling",
+      "floor": "dessert",
+      "price": 150000000
+    },
+    {
+      "id": "neon",
+      "slot": "wall",
+      "floor": "dessert",
+      "price": 400000000
+    },
+    {
+      "id": "aquarium",
+      "slot": "wall2",
+      "floor": "dessert",
+      "price": 1000000000
+    }
+  ]
+}

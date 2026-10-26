@@ -1,0 +1,464 @@
+{
+  "rewardSec": 12,
+  "rewardMin": 30,
+  "tasks": [
+    {
+      "id": "coffee10",
+      "type": "itemLevel",
+      "item": "coffee",
+      "n": 10
+    },
+    {
+      "id": "unlock_tea",
+      "type": "unlock",
+      "item": "tea"
+    },
+    {
+      "id": "seatC3",
+      "type": "seats",
+      "floor": "coffee",
+      "n": 3
+    },
+    {
+      "id": "hands1",
+      "type": "upgrade",
+      "upgrade": "hands",
+      "n": 1
+    },
+    {
+      "id": "tea10",
+      "type": "itemLevel",
+      "item": "tea",
+      "n": 10
+    },
+    {
+      "id": "seatC4",
+      "type": "seats",
+      "floor": "coffee",
+      "n": 4
+    },
+    {
+      "id": "coffee25",
+      "type": "itemLevel",
+      "item": "coffee",
+      "n": 25
+    },
+    {
+      "id": "vip3",
+      "type": "vips",
+      "n": 3
+    },
+    {
+      "id": "tipjar1",
+      "type": "upgrade",
+      "upgrade": "tipjar",
+      "n": 1
+    },
+    {
+      "id": "decor1",
+      "type": "decor",
+      "n": 1
+    },
+    {
+      "id": "staff2",
+      "type": "staff",
+      "n": 2
+    },
+    {
+      "id": "vip5",
+      "type": "vips",
+      "n": 5
+    },
+    {
+      "id": "tea25",
+      "type": "itemLevel",
+      "item": "tea",
+      "n": 25
+    },
+    {
+      "id": "chairs2",
+      "type": "upgrade",
+      "upgrade": "chairs",
+      "n": 2
+    },
+    {
+      "id": "sign3",
+      "type": "upgrade",
+      "upgrade": "sign",
+      "n": 3
+    },
+    {
+      "id": "croissant10",
+      "type": "itemLevel",
+      "item": "croissant",
+      "n": 10
+    },
+    {
+      "id": "training1",
+      "type": "upgrade",
+      "upgrade": "training",
+      "n": 1
+    },
+    {
+      "id": "coffee50",
+      "type": "itemLevel",
+      "item": "coffee",
+      "n": 50
+    },
+    {
+      "id": "seatB3",
+      "type": "seats",
+      "floor": "bakery",
+      "n": 3
+    },
+    {
+      "id": "vip10",
+      "type": "vips",
+      "n": 10
+    },
+    {
+      "id": "pantry1",
+      "type": "upgrade",
+      "upgrade": "pantry",
+      "n": 1
+    },
+    {
+      "id": "decor3",
+      "type": "decor",
+      "n": 3
+    },
+    {
+      "id": "sign4",
+      "type": "upgrade",
+      "upgrade": "sign",
+      "n": 4
+    },
+    {
+      "id": "adopts5",
+      "type": "adopts",
+      "n": 5
+    },
+    {
+      "id": "training2",
+      "type": "upgrade",
+      "upgrade": "training",
+      "n": 2
+    },
+    {
+      "id": "unlock_cake",
+      "type": "unlock",
+      "item": "cake"
+    },
+    {
+      "id": "served500",
+      "type": "served",
+      "n": 500
+    },
+    {
+      "id": "tipjar3",
+      "type": "upgrade",
+      "upgrade": "tipjar",
+      "n": 3
+    },
+    {
+      "id": "croissant25",
+      "type": "itemLevel",
+      "item": "croissant",
+      "n": 25
+    },
+    {
+      "id": "cake10",
+      "type": "itemLevel",
+      "item": "cake",
+      "n": 10
+    },
+    {
+      "id": "seatB4",
+      "type": "seats",
+      "floor": "bakery",
+      "n": 4
+    },
+    {
+      "id": "staff5",
+      "type": "staff",
+      "n": 5
+    },
+    {
+      "id": "pantry2",
+      "type": "upgrade",
+      "upgrade": "pantry",
+      "n": 2
+    },
+    {
+      "id": "sign5",
+      "type": "upgrade",
+      "upgrade": "sign",
+      "n": 5
+    },
+    {
+      "id": "chairs4",
+      "type": "upgrade",
+      "upgrade": "chairs",
+      "n": 4
+    },
+    {
+      "id": "vip20",
+      "type": "vips",
+      "n": 20
+    },
+    {
+      "id": "training3",
+      "type": "upgrade",
+      "upgrade": "training",
+      "n": 3
+    },
+    {
+      "id": "cake25",
+      "type": "itemLevel",
+      "item": "cake",
+      "n": 25
+    },
+    {
+      "id": "served1000",
+      "type": "served",
+      "n": 1000
+    },
+    {
+      "id": "adopts8",
+      "type": "adopts",
+      "n": 8
+    },
+    {
+      "id": "smile8",
+      "type": "upgrade",
+      "upgrade": "smile",
+      "n": 8
+    },
+    {
+      "id": "tipjar4",
+      "type": "upgrade",
+      "upgrade": "tipjar",
+      "n": 4
+    },
+    {
+      "id": "decor4",
+      "type": "decor",
+      "n": 4
+    },
+    {
+      "id": "vip30",
+      "type": "vips",
+      "n": 30
+    },
+    {
+      "id": "sign6",
+      "type": "upgrade",
+      "upgrade": "sign",
+      "n": 6
+    },
+    {
+      "id": "chairs5",
+      "type": "upgrade",
+      "upgrade": "chairs",
+      "n": 5
+    },
+    {
+      "id": "decor5",
+      "type": "decor",
+      "n": 5
+    },
+    {
+      "id": "open_dessert",
+      "type": "floor",
+      "floor": "dessert"
+    },
+    {
+      "id": "coffee75",
+      "type": "itemLevel",
+      "item": "coffee",
+      "n": 75
+    },
+    {
+      "id": "tea75",
+      "type": "itemLevel",
+      "item": "tea",
+      "n": 75
+    },
+    {
+      "id": "adopts10",
+      "type": "adopts",
+      "n": 10
+    },
+    {
+      "id": "training4",
+      "type": "upgrade",
+      "upgrade": "training",
+      "n": 4
+    },
+    {
+      "id": "served2000",
+      "type": "served",
+      "n": 2000
+    },
+    {
+      "id": "icecream10",
+      "type": "itemLevel",
+      "item": "icecream",
+      "n": 10
+    },
+    {
+      "id": "seatD3",
+      "type": "seats",
+      "floor": "dessert",
+      "n": 3
+    },
+    {
+      "id": "croissant50",
+      "type": "itemLevel",
+      "item": "croissant",
+      "n": 50
+    },
+    {
+      "id": "icecream25",
+      "type": "itemLevel",
+      "item": "icecream",
+      "n": 25
+    },
+    {
+      "id": "tipjar5",
+      "type": "upgrade",
+      "upgrade": "tipjar",
+      "n": 5
+    },
+    {
+      "id": "vip40",
+      "type": "vips",
+      "n": 40
+    },
+    {
+      "id": "sign7",
+      "type": "upgrade",
+      "upgrade": "sign",
+      "n": 7
+    },
+    {
+      "id": "unlock_bubbletea",
+      "type": "unlock",
+      "item": "bubbletea"
+    },
+    {
+      "id": "bubbletea10",
+      "type": "itemLevel",
+      "item": "bubbletea",
+      "n": 10
+    },
+    {
+      "id": "coffee100",
+      "type": "itemLevel",
+      "item": "coffee",
+      "n": 100
+    },
+    {
+      "id": "seatD4",
+      "type": "seats",
+      "floor": "dessert",
+      "n": 4
+    },
+    {
+      "id": "cake50",
+      "type": "itemLevel",
+      "item": "cake",
+      "n": 50
+    },
+    {
+      "id": "served3000",
+      "type": "served",
+      "n": 3000
+    },
+    {
+      "id": "decor6",
+      "type": "decor",
+      "n": 6
+    },
+    {
+      "id": "staff8",
+      "type": "staff",
+      "n": 8
+    },
+    {
+      "id": "tipjar8",
+      "type": "upgrade",
+      "upgrade": "tipjar",
+      "n": 8
+    },
+    {
+      "id": "staff10",
+      "type": "staff",
+      "n": 10
+    }
+  ],
+  "orders": {
+    "perDay": 3,
+    "rewardSec": 90,
+    "rewardMin": 1000,
+    "bonusTickets": 1,
+    "pool": [
+      {
+        "type": "served",
+        "n": [
+          800,
+          1000,
+          1200
+        ]
+      },
+      {
+        "type": "hand",
+        "n": [
+          150,
+          200,
+          250
+        ]
+      },
+      {
+        "type": "vips",
+        "n": [
+          6,
+          8,
+          10
+        ]
+      },
+      {
+        "type": "sold",
+        "n": [
+          120,
+          160,
+          200
+        ]
+      },
+      {
+        "type": "special",
+        "n": [
+          120,
+          160,
+          200
+        ]
+      },
+      {
+        "type": "buys",
+        "n": [
+          6,
+          8,
+          10
+        ]
+      },
+      {
+        "type": "sales",
+        "min": [
+          8,
+          10,
+          12
+        ]
+      }
+    ]
+  }
+}
