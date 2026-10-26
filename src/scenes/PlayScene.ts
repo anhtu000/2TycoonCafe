@@ -789,6 +789,20 @@ export class PlayScene extends BaseScene {
         return n === 1 ? app.t('task.decor1') : app.t('task.decor', { n });
       case 'earned':
         return app.t('task.earned', { n: formatNumber(n) });
+      case 'combo':
+        return app.t('task.combo', { n });
+      case 'wakes':
+        return n === 1 ? app.t('task.wake1') : app.t('task.wakes', { n });
+      case 'moods':
+        return app.t('task.moods', { n });
+      case 'guests':
+        return n === 1 ? app.t('task.guest1') : app.t('task.guests', { n });
+      case 'sets':
+        return n === 1 ? app.t('task.set1') : app.t('task.sets', { n });
+      case 'tours':
+        return n === 1 ? app.t('task.tour1') : app.t('task.tours', { n });
+      case 'friends':
+        return app.t('task.friends');
     }
   }
 

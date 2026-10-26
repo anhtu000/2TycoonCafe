@@ -250,6 +250,10 @@ test('tasks: every task can be done, decor tasks are skipped in a timed run', ()
   for (const u of content.upgrades) while (cafe.buyUpgrade(u.id));
   for (const a of content.staff.animals) for (let k = 0; k < content.staff.maxLevel; k++) cafe.adopt(false, a.id);
   cafe.s.totalEarned = 1e30;
+  // v2 counters, and a pair of best friends on one floor.
+  Object.assign(cafe.s, { bestCombo: 99, wakes: 99, memories: [99], guests: { giraffe: 99 }, setsServed: 99, tours: 99 });
+  const swap = cafe.friendSwap();
+  if (swap) cafe.swapStaff(...swap);
   for (const t of content.tasks.tasks) assert.ok(cafe.taskDone(t), `task ${t.id} cannot be done`);
   let n = 0;
   while (cafe.claimTask() > 0) n++;

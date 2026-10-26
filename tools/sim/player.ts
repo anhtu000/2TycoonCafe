@@ -41,6 +41,11 @@ export function doTasks(
       kind = 'decor';
     } else if (next && next.price <= Math.max(cafe.s.rate, 1) * 30) saveFor = next.price;
   }
+  // The best-friends task: move a helper next to its friend.
+  if (t?.type === 'friends' && !cafe.taskDone(t)) {
+    const swap = cafe.friendSwap();
+    if (swap) cafe.swapStaff(...swap);
+  }
   // Players follow the task: buy what it asks for when they can, save a little for it otherwise.
   if (t && !cafe.taskDone(t)) {
     const s = cafe.s;
@@ -260,9 +265,16 @@ export function simulate(
 /** One hand action, or false when nothing useful is left. */
 export function handAction(cafe: Cafe, events: CafeEvent[]): boolean {
   const s = cafe.s;
+  // 0. A napping helper: one tap wakes it (players see the Zzz).
+  const sleeper = Object.keys(s.naps ?? {}).find((a) => cafe.asleep(a));
+  if (sleeper) {
+    cafe.wake(sleeper, events);
+    return true;
+  }
   const waiting = s.customers.filter((c) => c.phase === 'wait' && !c.reserved);
-  // 1. Serve someone whose order is ready, VIPs first, then the most impatient.
-  const servable = waiting.filter((c) => s.items[c.item].ready > 0).sort((a, b) => Number(!!b.vip) - Number(!!a.vip) || a.patience - b.patience);
+  // 1. Serve someone whose order is ready, VIPs first, then dumbwaiter sets, then the most impatient.
+  const ready = (c: (typeof waiting)[number]) => s.items[c.item].ready > 0 && (!c.item2 || s.items[c.item2].ready > 0);
+  const servable = waiting.filter(ready).sort((a, b) => Number(!!b.vip) - Number(!!a.vip) || Number(!!b.item2) - Number(!!a.item2) || a.patience - b.patience);
   if (servable.length) {
     cafe.tapCustomer(servable[0].id, events);
     return true;
@@ -270,7 +282,10 @@ export function handAction(cafe: Cafe, events: CafeEvent[]): boolean {
   // 2. Make what someone wants and nobody is making.
   const wanting = s.customers.filter((c) => c.phase !== 'leave' && !c.reserved);
   const need = new Map<string, number>();
-  for (const c of wanting) need.set(c.item, (need.get(c.item) ?? 0) + 1);
+  for (const c of wanting) {
+    need.set(c.item, (need.get(c.item) ?? 0) + (c.kind === 'elephant' ? (c.need ?? 2) - (c.got ?? 0) : 1));
+    if (c.item2) need.set(c.item2, (need.get(c.item2) ?? 0) + 1);
+  }
   let best: string | null = null;
   let bestScore = 0;
   for (const [item, n] of need) {

@@ -20,6 +20,11 @@
       "n": 3
     },
     {
+      "id": "combo3",
+      "type": "combo",
+      "n": 3
+    },
+    {
       "id": "hands1",
       "type": "upgrade",
       "upgrade": "hands",
@@ -65,9 +70,19 @@
       "n": 2
     },
     {
+      "id": "wake1",
+      "type": "wakes",
+      "n": 1
+    },
+    {
       "id": "vip5",
       "type": "vips",
       "n": 5
+    },
+    {
+      "id": "moods3",
+      "type": "moods",
+      "n": 3
     },
     {
       "id": "tea25",
@@ -92,6 +107,11 @@
       "type": "itemLevel",
       "item": "croissant",
       "n": 10
+    },
+    {
+      "id": "guest1",
+      "type": "guests",
+      "n": 1
     },
     {
       "id": "training1",
@@ -123,9 +143,25 @@
       "n": 1
     },
     {
+      "id": "lift1",
+      "type": "upgrade",
+      "upgrade": "lift",
+      "n": 1
+    },
+    {
+      "id": "set1",
+      "type": "sets",
+      "n": 1
+    },
+    {
       "id": "decor3",
       "type": "decor",
       "n": 3
+    },
+    {
+      "id": "tour1",
+      "type": "tours",
+      "n": 1
     },
     {
       "id": "sign4",
@@ -184,6 +220,11 @@
       "n": 5
     },
     {
+      "id": "friends1",
+      "type": "friends",
+      "n": 1
+    },
+    {
       "id": "pantry2",
       "type": "upgrade",
       "upgrade": "pantry",
@@ -207,6 +248,11 @@
       "n": 20
     },
     {
+      "id": "guests5",
+      "type": "guests",
+      "n": 5
+    },
+    {
       "id": "training3",
       "type": "upgrade",
       "upgrade": "training",
@@ -219,14 +265,29 @@
       "n": 25
     },
     {
+      "id": "sets5",
+      "type": "sets",
+      "n": 5
+    },
+    {
       "id": "served1000",
       "type": "served",
       "n": 1000
     },
     {
+      "id": "combo10",
+      "type": "combo",
+      "n": 10
+    },
+    {
       "id": "adopts8",
       "type": "adopts",
       "n": 8
+    },
+    {
+      "id": "wakes5",
+      "type": "wakes",
+      "n": 5
     },
     {
       "id": "smile8",
@@ -244,6 +305,11 @@
       "id": "decor4",
       "type": "decor",
       "n": 4
+    },
+    {
+      "id": "tours3",
+      "type": "tours",
+      "n": 3
     },
     {
       "id": "vip30",
@@ -273,6 +339,12 @@
       "floor": "dessert"
     },
     {
+      "id": "lift2",
+      "type": "upgrade",
+      "upgrade": "lift",
+      "n": 2
+    },
+    {
       "id": "coffee75",
       "type": "itemLevel",
       "item": "coffee",
@@ -283,6 +355,11 @@
       "type": "itemLevel",
       "item": "tea",
       "n": 75
+    },
+    {
+      "id": "moods15",
+      "type": "moods",
+      "n": 15
     },
     {
       "id": "adopts10",

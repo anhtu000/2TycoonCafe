@@ -79,6 +79,26 @@ export interface CafeDef {
   daily: { coinsMin?: number; hearts?: number; ticket?: number; rarePal?: number; animal?: string }[];
   /** Today's special (after five stars): one menu item a day sells for mult times more. */
   special?: { mult: number };
+  /** Hand serves in a row (each within `window` seconds of the last) pay `step` more each, up to `max` steps. */
+  combo: { window: number; step: number; max: number };
+  /**
+   * Napping helpers (v2): with at least minStaff working, one falls asleep every everyMin..everyMax seconds.
+   * Asleep it works at `slow` speed for up to maxNap seconds; a tap wakes it with wakeBoost speed for wakeSeconds.
+   */
+  naps: { minStaff: number; everyMin: number; everyMax: number; slow: number; maxNap: number; wakeBoost: number; wakeSeconds: number };
+  /** Customers in a mood (v2): grey until served, they order what fits the mood and pay `pay` times more. */
+  moods: { fromServed: number; chance: number; pay: number; list: { id: string; items: string[] }[] };
+  /**
+   * Special guests (v2). giraffe: sits on its floor, its head pokes into the floor above and orders from there.
+   * elephant: takes two seats and orders `servings` of one item. mouse: sits on the counter, needs no seat.
+   */
+  guests: Record<GuestKind, GuestDef>;
+  /** Dumbwaiter sets (v2, upgrade stat "lift"): a customer orders one item from this floor and one from another. */
+  lift: { chance: number; pay: number; patience: number };
+  /** Tour groups (v2): every everyMin..everyMax s after afterFloor opens, `seconds` of busy arrivals; serve `need` for the chest. */
+  tours: { afterFloor: string; firstAfter: number; everyMin: number; everyMax: number; seconds: number; spawnMult: number; need: number; pay: number; rewardSec: number; rewardMin: number };
+  /** Stops of the tortoise's journey (v2), one per star earned (index = stars). Scenery only. */
+  journey: string[];
   rewarded: {
     /** Seconds between two uses of a boost (Rush Hour, free helper). x1.5 when the portal gives rewards without ads. */
     cooldown: number;
@@ -92,7 +112,30 @@ export interface CafeDef {
   };
 }
 
+export type GuestKind = 'giraffe' | 'elephant' | 'mouse';
+
+export interface GuestDef {
+  /** Chance that a new customer is this guest, once `fromServed` customers were served. */
+  chance: number;
+  fromServed: number;
+  /** Coins multiplier on the order. */
+  pay: number;
+  /** Patience multiplier. */
+  patience: number;
+  /** Servings ordered (elephant). */
+  servings?: number;
+}
+
 export type Perk = 'speed' | 'tips';
+
+/**
+ * A helper's own touch (v2), active while it works at a station.
+ * calm: customers on its floor are more patient. combo: longer hand-serve chain window. quick: carries faster.
+ * mood: moody customers pay more. vip: VIPs come sooner. cool: more tips on the Dessert Bar. sleepy: naps more,
+ * wakes up faster. tour: tourists pay more. sets: dumbwaiter sets pay more. giant: giraffes and elephants pay more.
+ * cheer: every other helper works faster.
+ */
+export type Trait = 'calm' | 'combo' | 'quick' | 'mood' | 'vip' | 'cool' | 'sleepy' | 'tour' | 'sets' | 'giant' | 'cheer';
 
 export interface AnimalDef {
   id: string;
@@ -101,6 +144,7 @@ export interface AnimalDef {
   perkValue: number;
   /** Not in the adoption roll: comes only from where this says ("daily": the 7-day gift). */
   exclusive?: string;
+  trait?: Trait;
 }
 
 export interface RarityDef {
@@ -119,9 +163,11 @@ export interface StaffDef {
   maxLevel: number;
   adopt: { cost: number; growth: number; firstGuided: string };
   animals: AnimalDef[];
+  /** Best friends (v2): both work faster and earn more tips (x bonus) when they work on the same floor. */
+  friends: { bonus: number; pairs: [string, string][] };
 }
 
-export type StatId = 'handTip' | 'tapBoost' | 'spawnMult' | 'patience' | 'tips' | 'staffSpeed' | 'offlineHours';
+export type StatId = 'handTip' | 'tapBoost' | 'spawnMult' | 'patience' | 'tips' | 'staffSpeed' | 'offlineHours' | 'lift';
 
 export interface ShowRule {
   served?: number;
@@ -143,12 +189,33 @@ export interface UpgradeDef {
   show: ShowRule;
 }
 
-export type TaskType = 'served' | 'vips' | 'itemLevel' | 'unlock' | 'floor' | 'seats' | 'upgrade' | 'adopts' | 'staff' | 'decor' | 'earned';
+export type TaskType =
+  | 'served'
+  | 'vips'
+  | 'itemLevel'
+  | 'unlock'
+  | 'floor'
+  | 'seats'
+  | 'upgrade'
+  | 'adopts'
+  | 'staff'
+  | 'decor'
+  | 'earned'
+  // v2: each new mechanic is taught by a task when it first shows up.
+  | 'combo'
+  | 'wakes'
+  | 'moods'
+  | 'guests'
+  | 'sets'
+  | 'tours'
+  | 'friends';
 
 /**
  * One short task (CLAUDE.md 5a): one at a time, in order, claimed with a tap for coins.
  * served, vips, adopts, staff, decor, earned: reach n in this run (decor: items owned, main run only).
  * itemLevel: item to level n. unlock: item on the menu. floor: floor open. seats: n seats on floor. upgrade: upgrade to level n.
+ * v2: combo: a hand-serve chain of n. wakes: wake n napping helpers. moods, guests, sets: serve n moody customers,
+ * special guests, dumbwaiter sets. tours: n tour groups served in time. friends: a pair of best friends on one floor.
  */
 export interface TaskDef {
   id: string;
@@ -200,7 +267,7 @@ export interface Content {
   tasks: TasksDef;
 }
 
-const TASK_TYPES: TaskType[] = ['served', 'vips', 'itemLevel', 'unlock', 'floor', 'seats', 'upgrade', 'adopts', 'staff', 'decor', 'earned'];
+const TASK_TYPES: TaskType[] = ['served', 'vips', 'itemLevel', 'unlock', 'floor', 'seats', 'upgrade', 'adopts', 'staff', 'decor', 'earned', 'combo', 'wakes', 'moods', 'guests', 'sets', 'tours', 'friends'];
 const ORDER_TYPES: OrderType[] = ['served', 'hand', 'vips', 'sold', 'special', 'buys', 'sales'];
 
 export function checkContent(raw: { cafe: unknown; staff: unknown; upgrades: unknown; tasks: unknown }): Content {
@@ -240,11 +307,28 @@ export function checkContent(raw: { cafe: unknown; staff: unknown; upgrades: unk
   for (const a of staff.animals) c.ref(a.rarity, rarityIds, `animal ${a.id} rarity`);
   for (const r of rarityIds) c.need(staff.animals.some((a) => a.rarity === r && !a.exclusive), `no animal of rarity ${r} in the adoption roll`);
   c.ref(staff.adopt.firstGuided, staff.animals.filter((a) => !a.exclusive).map((a) => a.id), 'adopt.firstGuided');
+  const animalIds = staff.animals.map((a) => a.id);
+  c.need(staff.friends.bonus >= 1, 'friends.bonus >= 1');
+  for (const [a, b] of staff.friends.pairs) {
+    c.ref(a, animalIds, 'friends pair');
+    c.ref(b, animalIds, 'friends pair');
+    c.need(a !== b, `friends pair ${a}: two different animals`);
+  }
   for (const [i, d] of cafe.daily.entries()) {
     if (d.animal) c.need(staff.animals.some((a) => a.id === d.animal && a.exclusive === 'daily'), `daily day ${i + 1}: animal must be an exclusive "daily" animal`);
     if (d.rarePal !== undefined) c.need(d.rarePal >= 1, `daily day ${i + 1}: rarePal >= 1`);
   }
   if (cafe.special) c.need(cafe.special.mult > 1, 'special.mult must be above 1');
+  const itemIdsAll = cafe.items.map((i) => i.id);
+  c.need(cafe.combo.window > 0 && cafe.combo.step >= 0 && cafe.combo.max >= 1, 'combo: window > 0, step >= 0, max >= 1');
+  c.need(cafe.naps.everyMax >= cafe.naps.everyMin && cafe.naps.everyMin > 0 && cafe.naps.slow > 0 && cafe.naps.slow < 1, 'naps: everyMin..everyMax, 0 < slow < 1');
+  for (const m of cafe.moods.list) for (const i of m.items) c.ref(i, itemIdsAll, `mood ${m.id} item`);
+  c.need(cafe.moods.chance >= 0 && cafe.moods.chance < 1, 'moods.chance 0..1');
+  for (const k of ['giraffe', 'elephant', 'mouse'] as GuestKind[]) c.need(!!cafe.guests[k] && cafe.guests[k].chance >= 0 && cafe.guests[k].pay > 0, `guests.${k}`);
+  c.need((cafe.guests.elephant.servings ?? 0) >= 2, 'guests.elephant.servings >= 2');
+  c.ref(cafe.tours.afterFloor, floorIds, 'tours.afterFloor');
+  c.need(cafe.tours.everyMax >= cafe.tours.everyMin && cafe.tours.seconds > 0 && cafe.tours.spawnMult > 0 && cafe.tours.spawnMult < 1, 'tours: everyMin..everyMax, seconds > 0, 0 < spawnMult < 1');
+  c.need(cafe.journey.length === cafe.goals.length + 1, 'journey: one stop per star plus the start');
 
   c.uniqueIds(upgrades, 'upgrade');
   for (const u of upgrades) {

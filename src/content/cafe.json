@@ -181,6 +181,108 @@
   "special": {
     "mult": 2
   },
+  "combo": {
+    "window": 2,
+    "step": 0.05,
+    "max": 10
+  },
+  "naps": {
+    "minStaff": 2,
+    "everyMin": 45,
+    "everyMax": 90,
+    "slow": 0.25,
+    "maxNap": 25,
+    "wakeBoost": 2,
+    "wakeSeconds": 8
+  },
+  "moods": {
+    "fromServed": 25,
+    "chance": 0.18,
+    "pay": 1.5,
+    "list": [
+      {
+        "id": "sleepy",
+        "items": [
+          "coffee",
+          "tea"
+        ]
+      },
+      {
+        "id": "cold",
+        "items": [
+          "tea",
+          "croissant"
+        ]
+      },
+      {
+        "id": "hungry",
+        "items": [
+          "croissant",
+          "cake"
+        ]
+      },
+      {
+        "id": "sad",
+        "items": [
+          "cake",
+          "icecream"
+        ]
+      },
+      {
+        "id": "hot",
+        "items": [
+          "icecream",
+          "bubbletea"
+        ]
+      }
+    ]
+  },
+  "guests": {
+    "giraffe": {
+      "chance": 0.07,
+      "fromServed": 50,
+      "pay": 3,
+      "patience": 1.4
+    },
+    "elephant": {
+      "chance": 0.06,
+      "fromServed": 70,
+      "pay": 2.5,
+      "patience": 1.5,
+      "servings": 2
+    },
+    "mouse": {
+      "chance": 0.07,
+      "fromServed": 35,
+      "pay": 2,
+      "patience": 1.6
+    }
+  },
+  "lift": {
+    "chance": 0.14,
+    "pay": 2,
+    "patience": 1.4
+  },
+  "tours": {
+    "afterFloor": "bakery",
+    "firstAfter": 60,
+    "everyMin": 160,
+    "everyMax": 220,
+    "seconds": 30,
+    "spawnMult": 0.35,
+    "need": 10,
+    "pay": 1.3,
+    "rewardSec": 45,
+    "rewardMin": 500
+  },
+  "journey": [
+    "meadow",
+    "river",
+    "forest",
+    "hills",
+    "beach",
+    "snow"
+  ],
   "daily": [
     {
       "coinsMin": 2

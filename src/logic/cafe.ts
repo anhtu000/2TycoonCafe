@@ -2,7 +2,7 @@
 // The play scene and the balance simulator (tools/sim) both drive this class,
 // so simulated pacing matches the real game.
 import { pityLeft, rarityOdds, Rng, rollRarity } from '../../core/rng.ts';
-import type { AnimalDef, Content, ItemDef, OrderType, StatId, TaskDef, UpgradeDef } from './content.ts';
+import type { AnimalDef, Content, GuestKind, ItemDef, OrderType, StatId, TaskDef, Trait, UpgradeDef } from './content.ts';
 
 export type RunMode = 'main' | 'timed';
 export type RewardId = 'rush' | 'freeAdopt' | 'freeUpgrade';
@@ -26,6 +26,19 @@ export interface Customer {
   reserved?: boolean;
   /** Look of this customer (index into the customer palette). */
   look: number;
+  /** v2: a mood (grey until served, pays moods.pay). */
+  mood?: string;
+  /** v2: a special guest. A giraffe orders from the floor above (its head is there); an elephant also takes seat2. */
+  kind?: GuestKind;
+  /** Servings ordered (elephant) and received so far. */
+  need?: number;
+  got?: number;
+  /** Elephant: the second seat it takes. */
+  seat2?: number;
+  /** v2: dumbwaiter set, the second item (from another floor). */
+  item2?: string;
+  /** v2: came with a tour group. */
+  tourist?: boolean;
 }
 
 export interface Carry {
@@ -33,6 +46,8 @@ export interface Carry {
   t: number;
   total: number;
   customer: number;
+  /** Dumbwaiter set: the second item, taken from its floor at pickup (put back if the customer has left). */
+  item2?: string;
 }
 
 export interface ItemState {
@@ -106,6 +121,31 @@ export interface RunState {
   sales?: number;
   /** Today's orders and special (main cafe after five stars). */
   day?: DayState;
+  /** v2: hand-serve chain: length and time of the last hand serve. */
+  combo?: { n: number; t: number };
+  /** v2: napping helpers: animal id -> seconds asleep left. */
+  naps?: Record<string, number>;
+  /** v2: seconds until the next nap. */
+  napTimer?: number;
+  /** v2: woken helpers: animal id -> seconds of extra speed left. */
+  wake?: Record<string, number>;
+  /** v2: stations the player arranged by hand: item id -> animal id (kept when helpers are rearranged). */
+  pins?: Record<string, string>;
+  /** v2: happy moody customers per floor (photos on the wall). */
+  memories?: number[];
+  /** v2: special guests served, by kind. */
+  guests?: Partial<Record<GuestKind, number>>;
+  /** v2: dumbwaiter sets served at least once ("coffee+croissant"). */
+  sets?: string[];
+  /** v2: the tour group in the cafe, or null. */
+  tour?: { left: number; served: number; need: number } | null;
+  /** v2: seconds until the next tour group. */
+  tourTimer?: number;
+  /** v2 counters for tasks: longest hand-serve chain, helpers woken, sets served, tour groups served in time. */
+  bestCombo?: number;
+  wakes?: number;
+  setsServed?: number;
+  tours?: number;
 }
 
 /** One daily order. need: amount to reach from the start of the day. item: the menu item (sold, special). */
@@ -159,7 +199,17 @@ export type CafeEvent =
   | { type: 'spawn'; customer: Customer }
   | { type: 'made'; item: string }
   | { type: 'carry'; item: string; customer: number }
-  | { type: 'served'; customer: Customer; coins: number; hand: boolean; vipBonus: number }
+  /** combo: hand-serve chain length (hand only). set: the dumbwaiter set served. */
+  | { type: 'served'; customer: Customer; coins: number; hand: boolean; vipBonus: number; combo?: number; beat?: boolean; set?: string }
+  /** An elephant got one of its servings. */
+  | { type: 'partial'; customer: Customer }
+  | { type: 'nap'; animal: string; item: string }
+  /** natural: woke up alone (no extra speed). */
+  | { type: 'woke'; animal: string; item: string; natural: boolean }
+  /** Two best friends now work on the same floor. */
+  | { type: 'friends'; a: string; b: string }
+  | { type: 'tourStart'; need: number; seconds: number }
+  | { type: 'tourEnd'; success: boolean; coins: number; served: number; need: number }
   | { type: 'lost'; customer: Customer }
   | { type: 'gone'; customer: number }
   | { type: 'star'; stars: number }
@@ -255,7 +305,7 @@ export class Cafe {
   }
 
   stat(stat: StatId): number {
-    let value = stat === 'handTip' || stat === 'offlineHours' ? 0 : 1;
+    let value = stat === 'handTip' || stat === 'offlineHours' || stat === 'lift' ? 0 : 1;
     for (const u of this.content.upgrades) {
       if (u.stat !== stat) continue;
       const l = this.level(u.id);
@@ -325,7 +375,10 @@ export class Cafe {
   itemValue(id: string, level = this.s.items[id].level) {
     const def = this.item(id);
     const staff = this.s.assign[id];
-    const tips = this.stat('tips') * this.extraTips * (staff ? this.animalTips(staff) : 1);
+    let tips = this.stat('tips') * this.extraTips * (staff ? this.animalTips(staff) : 1);
+    if (staff && this.friendAt(id)) tips *= this.content.staff.friends.bonus;
+    // A cool helper (penguin) earns more on the last floor (the Dessert Bar).
+    if (staff && this.animal(staff).trait === 'cool' && this.floorIndexOf(id) === this.content.cafe.floors.length - 1) tips *= 1.2;
     return def.value * level * this.milestoneMult(level, 'value') * tips * (this.specialItem() === id ? this.content.cafe.special!.mult : 1);
   }
 
@@ -334,14 +387,149 @@ export class Cafe {
     return this.item(id).makeTime / this.milestoneMult(this.s.items[id].level, 'speed');
   }
 
-  /** Machine speed: 1 by hand, the animal's speed with staff. */
+  /** Machine speed: 1 by hand, the animal's speed with staff (friends, naps and cheer included). */
   stationSpeed(id: string) {
     const staff = this.s.assign[id];
-    return staff ? this.animalSpeed(staff) * this.stat('staffSpeed') : 1;
+    if (!staff) return 1;
+    let v = this.animalSpeed(staff) * this.stat('staffSpeed');
+    if (this.friendAt(id)) v *= this.content.staff.friends.bonus;
+    const naps = this.content.cafe.naps;
+    if (this.asleep(staff)) v *= naps.slow;
+    else if ((this.s.wake?.[staff] ?? 0) > 0) v *= this.animal(staff).trait === 'sleepy' ? naps.wakeBoost * 1.5 : naps.wakeBoost;
+    // A cheerful helper (Snow Fox) lifts everyone else.
+    if (this.animal(staff).trait !== 'cheer' && this.hasTrait('cheer')) v *= 1.1;
+    return v;
   }
 
   patience() {
     return this.content.cafe.customers.patience * this.stat('patience');
+  }
+
+  // ---------- v2: traits, friends, naps, combo ----------
+
+  /** Stations at work: [item, animal], only unlocked ones. */
+  working(): [string, string][] {
+    return Object.entries(this.s.assign).filter(([item]) => this.s.items[item]?.unlocked);
+  }
+
+  /** Station (item id) where this animal works, or null. */
+  stationOf(animal: string): string | null {
+    for (const [item, a] of this.working()) if (a === animal) return item;
+    return null;
+  }
+
+  /** Floors where a working helper has this trait. */
+  traitFloors(t: Trait): number[] {
+    const out: number[] = [];
+    for (const [item, a] of this.working()) if (this.animal(a).trait === t) out.push(this.floorIndexOf(item));
+    return out;
+  }
+
+  hasTrait(t: Trait) {
+    for (const [, a] of this.working()) if (this.animal(a).trait === t) return true;
+    return false;
+  }
+
+  areFriends(a: string, b: string) {
+    return this.content.staff.friends.pairs.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+  }
+
+  /** The best friend working on the same floor as the helper at this station, or null. */
+  friendAt(item: string): string | null {
+    const a = this.s.assign[item];
+    if (!a) return null;
+    for (const other of this.itemsOnFloor(this.floorIndexOf(item))) {
+      if (other.id === item || !this.s.items[other.id].unlocked) continue;
+      const b = this.s.assign[other.id];
+      if (b && this.areFriends(a, b)) return b;
+    }
+    return null;
+  }
+
+  /** Pairs of best friends working on the same floor now, as "a|b" (sorted). */
+  activePairs(): string[] {
+    const out = new Set<string>();
+    for (const [item, a] of this.working()) {
+      const b = this.friendAt(item);
+      if (b) out.add([a, b].sort().join('|'));
+    }
+    return [...out];
+  }
+
+  asleep(animal: string) {
+    return (this.s.naps?.[animal] ?? 0) > 0;
+  }
+
+  /** Seconds of the hand-serve chain window (a combo helper lengthens it). */
+  comboWindow() {
+    return this.content.cafe.combo.window + (this.hasTrait('combo') ? 0.75 : 0);
+  }
+
+  /** Current hand-serve chain, 0 when it has run out. */
+  comboNow() {
+    const c = this.s.combo;
+    return c && this.s.time - c.t <= this.comboWindow() ? c.n : 0;
+  }
+
+  /** Seconds left before the chain runs out. */
+  comboLeft() {
+    const c = this.s.combo;
+    return c ? Math.max(0, this.comboWindow() - (this.s.time - c.t)) : 0;
+  }
+
+  /** Coins multiplier of the n-th hand serve in a row: the first pays as usual, each next one `step` more. */
+  comboMult(n: number) {
+    const c = this.content.cafe.combo;
+    return 1 + c.step * Math.min(Math.max(0, n - 1), c.max);
+  }
+
+  /** Stop of the tortoise's journey: one per star (scenery). */
+  region(): string {
+    const j = this.content.cafe.journey;
+    return j[Math.min(this.stars(), j.length - 1)];
+  }
+
+  /** "a+b" key of a dumbwaiter set, lower floor first. */
+  setKey(a: string, b: string) {
+    return this.floorIndexOf(a) <= this.floorIndexOf(b) ? `${a}+${b}` : `${b}+${a}`;
+  }
+
+  /** Wakes a napping helper: it works extra fast for a few seconds. */
+  wake(animal: string, events: CafeEvent[] = []): boolean {
+    if (!this.asleep(animal)) return false;
+    delete this.s.naps![animal];
+    (this.s.wake ??= {})[animal] = this.content.cafe.naps.wakeSeconds;
+    this.s.wakes = (this.s.wakes ?? 0) + 1;
+    events.push({ type: 'woke', animal, item: this.stationOf(animal) ?? '', natural: false });
+    return true;
+  }
+
+  /**
+   * Swaps the helpers of two stations (drag and drop). Either may be empty. Both stations stay as the player
+   * arranged them when helpers are rearranged later (pins).
+   */
+  swapStaff(itemA: string, itemB: string): boolean {
+    const s = this.s;
+    if (itemA === itemB || !s.items[itemA]?.unlocked || !s.items[itemB]?.unlocked) return false;
+    const x = s.assign[itemA];
+    const y = s.assign[itemB];
+    if (!x && !y) return false;
+    const before = new Set(this.activePairs());
+    const pins = (s.pins ??= {});
+    for (const [item, a] of [
+      [itemA, y],
+      [itemB, x],
+    ] as [string, string | undefined][]) {
+      if (a) {
+        s.assign[item] = a;
+        pins[item] = a;
+      } else {
+        delete s.assign[item];
+        delete pins[item];
+      }
+    }
+    this.reassign(before);
+    return true;
   }
 
   // ---------- prices ----------
@@ -548,17 +736,90 @@ export class Cafe {
     return this.giftAnimal(animal.id);
   }
 
-  /** Puts the strongest animals at the most valuable stations. */
-  reassign() {
-    const items = this.content.cafe.items.filter((i) => this.s.items[i.id].unlocked);
+  /**
+   * Puts the strongest animals at the most valuable stations. Stations the player arranged by hand (pins)
+   * keep their helper. Then swaps that bring best friends together on a floor are made when they pay
+   * (v2). `before`: pairs active before the change, for the "friends" event.
+   */
+  reassign(before: Set<string> = new Set(this.activePairs())) {
+    const s = this.s;
+    const items = this.content.cafe.items.filter((i) => s.items[i.id].unlocked);
     // Most valuable menu item first, so the best animal works where it earns most.
     items.sort((a, b) => b.value - a.value);
-    const animals = Object.keys(this.s.staff).sort((a, b) => this.animalPower(b) - this.animalPower(a) || a.localeCompare(b));
+    const pins = s.pins ?? {};
     const assign: Record<string, string> = {};
-    items.forEach((item, i) => {
-      if (animals[i]) assign[item.id] = animals[i];
-    });
-    this.s.assign = assign;
+    const used = new Set<string>();
+    for (const item of items) {
+      const a = pins[item.id];
+      if (a && s.staff[a] && !used.has(a)) {
+        assign[item.id] = a;
+        used.add(a);
+      } else delete pins[item.id];
+    }
+    const free = Object.keys(s.staff)
+      .filter((a) => !used.has(a))
+      .sort((a, b) => this.animalPower(b) - this.animalPower(a) || a.localeCompare(b));
+    for (const item of items) if (!assign[item.id] && free.length) assign[item.id] = free.shift()!;
+    // Local search over the stations not pinned, and the helpers resting: best friends on one floor
+    // pay friends.bonus twice (speed and tips) on both stations.
+    const open = items.filter((i) => !pins[i.id]).map((i) => i.id);
+    const bench = free;
+    const weight = (item: string) => this.item(item).value;
+    const score = (as: Record<string, string>) => {
+      let total = 0;
+      for (const item of items) {
+        const a = as[item.id];
+        if (!a) continue;
+        let v = weight(item.id) * this.animalPower(a);
+        const f = this.floorIndexOf(item.id);
+        const mate = this.itemsOnFloor(f).find((o) => o.id !== item.id && as[o.id] && this.areFriends(a, as[o.id]));
+        if (mate) v *= this.content.staff.friends.bonus ** 2;
+        total += v;
+      }
+      return total;
+    };
+    let best = score(assign);
+    for (let round = 0; round < 20; round++) {
+      let improved = false;
+      for (let i = 0; i < open.length; i++) {
+        for (let j = i + 1; j < open.length; j++) {
+          const [p, q] = [open[i], open[j]];
+          const trial = { ...assign };
+          [trial[p], trial[q]] = [assign[q], assign[p]];
+          if (!trial[p]) delete trial[p];
+          if (!trial[q]) delete trial[q];
+          const v = score(trial);
+          if (v > best * (1 + 1e-9)) {
+            Object.assign(assign, trial);
+            for (const k of [p, q]) if (!trial[k]) delete assign[k];
+            best = v;
+            improved = true;
+          }
+        }
+        for (let k = 0; k < bench.length; k++) {
+          const p = open[i];
+          const trial = { ...assign, [p]: bench[k] };
+          const v = score(trial);
+          if (v > best * (1 + 1e-9)) {
+            const out = assign[p];
+            assign[p] = bench[k];
+            if (out) bench[k] = out;
+            else bench.splice(k, 1);
+            best = v;
+            improved = true;
+          }
+        }
+      }
+      if (!improved) break;
+    }
+    s.assign = assign;
+    // A helper that left its station stops napping.
+    if (s.naps) for (const a of Object.keys(s.naps)) if (!this.stationOf(a)) delete s.naps[a];
+    for (const pair of this.activePairs()) {
+      if (before.has(pair)) continue;
+      const [x, y] = pair.split('|');
+      this.pending.push({ type: 'friends', a: x, b: y });
+    }
   }
 
   /** Tap on a machine: starts a serving, or speeds up the one being made. */
@@ -575,14 +836,39 @@ export class Cafe {
     return 'start';
   }
 
-  /** Tap on a customer: serves them by hand when their order is on the counter. */
-  tapCustomer(cid: number, events: CafeEvent[] = []): 'served' | 'notReady' | 'none' {
+  /**
+   * Tap on a customer: serves them by hand when their order is on the counter. A dumbwaiter set needs both
+   * items ready (the second comes up the lift); an elephant takes what is ready and waits for the rest.
+   * beat: the tap landed on the music's beat (counts double in the hand-serve chain).
+   */
+  tapCustomer(cid: number, events: CafeEvent[] = [], beat = false): 'served' | 'partial' | 'notReady' | 'none' {
     const c = this.s.customers.find((x) => x.id === cid);
     if (!c || c.phase !== 'wait' || c.reserved) return 'none';
     const st = this.s.items[c.item];
-    if (st.ready < 1) return 'notReady';
-    st.ready -= 1;
-    this.serve(c, true, events);
+    if (c.item2) {
+      const st2 = this.s.items[c.item2];
+      if (st.ready < 1 || st2.ready < 1) return 'notReady';
+      st.ready -= 1;
+      st2.ready -= 1;
+    } else if (c.kind === 'elephant') {
+      if (st.ready < 1) return 'notReady';
+      const need = c.need ?? 2;
+      const take = Math.min(st.ready, need - (c.got ?? 0));
+      st.ready -= take;
+      c.got = (c.got ?? 0) + take;
+      if (c.got < need) {
+        events.push({ type: 'partial', customer: c });
+        return 'partial';
+      }
+    } else {
+      if (st.ready < 1) return 'notReady';
+      st.ready -= 1;
+    }
+    const prev = this.comboNow();
+    const n = prev + (beat ? 2 : 1);
+    this.s.combo = { n, t: this.s.time };
+    this.s.bestCombo = Math.max(this.s.bestCombo ?? 0, n);
+    this.serve(c, true, events, n, beat);
     return 'served';
   }
 
@@ -597,16 +883,18 @@ export class Cafe {
     s.time += dt;
     if (s.rushLeft > 0) s.rushLeft = Math.max(0, s.rushLeft - dt);
 
-    // Customers arrive.
+    // Customers arrive (much more often while a tour group is in).
     s.floors.forEach((f, i) => {
       if (!f.open) return;
       f.spawnTimer -= dt;
       if (f.spawnTimer > 0) return;
       const seat = this.freeSeat(i);
       if (seat < 0) return;
-      this.spawn(i, seat, events);
+      // Now and then a tiny mouse comes instead: it sits on the counter and leaves the seat free.
+      if (this.mouseCanCome(i) && this.rng.next() < this.content.cafe.guests.mouse.chance) this.spawn(i, -1, events, 'mouse');
+      else this.spawn(i, seat, events);
       const def = this.content.cafe.floors[i];
-      f.spawnTimer = def.spawnEvery * this.stat('spawnMult') * (0.75 + this.rng.next() * 0.5);
+      f.spawnTimer = def.spawnEvery * this.stat('spawnMult') * (0.75 + this.rng.next() * 0.5) * (s.tour ? this.content.cafe.tours.spawnMult : 1);
       s.rng = this.rng.state;
     });
     if (s.vipOn) s.vipTimer -= dt;
@@ -632,6 +920,8 @@ export class Cafe {
     }
     for (const c of s.customers.filter((x) => x.phase === 'leave' && x.t <= 0)) events.push({ type: 'gone', customer: c.id });
     s.customers = s.customers.filter((c) => !(c.phase === 'leave' && c.t <= 0));
+    this.stepNaps(dt, events);
+    this.stepTour(dt, events);
 
     // Machines and staff.
     for (const def of this.content.cafe.items) {
@@ -652,10 +942,23 @@ export class Cafe {
       if (st.carry) {
         st.carry.t -= dt * speed;
         if (st.carry.t <= 0) {
-          const c = s.customers.find((x) => x.id === st.carry!.customer);
+          const carry = st.carry;
+          const c = s.customers.find((x) => x.id === carry.customer);
           st.carry = null;
-          if (c && c.phase === 'wait') this.serve(c, false, events);
-          else st.ready += 1;
+          if (c && c.phase === 'wait') {
+            if (c.kind === 'elephant' && (c.got ?? 0) + 1 < (c.need ?? 2)) {
+              // One of the elephant's servings: it waits for the rest.
+              c.got = (c.got ?? 0) + 1;
+              c.reserved = false;
+              events.push({ type: 'partial', customer: c });
+            } else {
+              if (c.kind === 'elephant') c.got = c.need;
+              this.serve(c, false, events);
+            }
+          } else {
+            st.ready += 1;
+            if (carry.item2) s.items[carry.item2].ready += 1;
+          }
         }
       }
       st.hold = st.ready > 0 && !st.carry ? (st.hold ?? 0) + dt : 0;
@@ -663,15 +966,22 @@ export class Cafe {
         const c = this.neediest(def.id);
         if (c) {
           st.ready -= 1;
+          // A set: the second item comes up the dumbwaiter at the same time.
+          if (c.item2) s.items[c.item2].ready -= 1;
           c.reserved = true;
-          const total = this.content.cafe.staff.deliverTime;
-          st.carry = { t: total, total, customer: c.id };
+          const total = this.content.cafe.staff.deliverTime * (this.animal(animal).trait === 'quick' ? 0.7 : 1);
+          st.carry = { t: total, total, customer: c.id, item2: c.item2 };
           events.push({ type: 'carry', item: def.id, customer: c.id });
         }
       }
       // Start the next serving when someone is waiting for it.
       if (st.job === null && st.ready < this.content.cafe.counterCap) {
-        const wanted = s.customers.filter((c) => c.item === def.id && c.phase !== 'leave' && !c.reserved && !c.vip).length;
+        let wanted = 0;
+        for (const c of s.customers) {
+          if (c.phase === 'leave' || c.reserved || c.vip) continue;
+          if (c.item === def.id) wanted += c.kind === 'elephant' ? (c.need ?? 2) - (c.got ?? 0) : 1;
+          else if (c.item2 === def.id && this.stat('lift') >= 2) wanted += 1;
+        }
         if (wanted > st.ready) st.job = 0;
       }
     }
@@ -689,15 +999,37 @@ export class Cafe {
     return events;
   }
 
+  private takenSeats(floor: number) {
+    const taken = new Set<number>();
+    for (const c of this.s.customers) {
+      if (c.floor !== floor || c.phase === 'leave') continue;
+      taken.add(c.seat);
+      if (c.seat2 !== undefined) taken.add(c.seat2);
+    }
+    return taken;
+  }
+
   private freeSeat(floor: number) {
-    const taken = new Set(this.s.customers.filter((c) => c.floor === floor && c.phase !== 'leave').map((c) => c.seat));
+    const taken = this.takenSeats(floor);
     for (let i = 0; i < this.s.floors[floor].seats; i++) if (!taken.has(i)) return i;
     return -1;
   }
 
-  private spawn(floor: number, seat: number, events: CafeEvent[]) {
+  /** A mouse may come: the tutorial is over, enough customers served, no other mouse on this floor. */
+  private mouseCanCome(floor: number) {
     const s = this.s;
-    const menu = this.itemsOnFloor(floor).filter((i) => s.items[i.id].unlocked);
+    return !!s.vipOn && s.served >= this.content.cafe.guests.mouse.fromServed && !s.customers.some((c) => c.floor === floor && c.kind === 'mouse' && c.phase !== 'leave');
+  }
+
+  /** Unlocked menu items of a floor. */
+  private menuOf(floor: number) {
+    return this.itemsOnFloor(floor).filter((i) => this.s.items[i.id].unlocked);
+  }
+
+  private spawn(floor: number, seat: number, events: CafeEvent[], kind?: GuestKind) {
+    const s = this.s;
+    const cfg = this.content.cafe;
+    const menu = this.menuOf(floor);
     // The newest item is ordered a bit more often, so a fresh unlock shows up quickly.
     const weights = menu.map((_, i) => (i === menu.length - 1 && menu.length > 1 ? 1.4 : 1));
     let roll = this.rng.next() * weights.reduce((a, b) => a + b, 0);
@@ -709,43 +1041,118 @@ export class Cafe {
         break;
       }
     }
-    const vip = Boolean(s.vipOn && s.vipTimer <= 0);
+    const vip = !kind && Boolean(s.vipOn && s.vipTimer <= 0);
     if (vip) {
-      const v = this.content.cafe.vip;
-      s.vipTimer = v.everyMin + this.rng.next() * (v.everyMax - v.everyMin);
+      const v = cfg.vip;
+      // A VIP-loving helper (shiba) calls them in sooner.
+      s.vipTimer = (v.everyMin + this.rng.next() * (v.everyMax - v.everyMin)) * (this.hasTrait('vip') ? 0.75 : 1);
     }
-    const patience = vip ? this.content.cafe.vip.patience * this.stat('patience') : this.patience();
+    let patience = vip ? cfg.vip.patience * this.stat('patience') : this.patience();
+    // A calm helper (capybara) on this floor makes its customers more patient.
+    if (this.traitFloors('calm').includes(floor)) patience *= 1.2;
     const c: Customer = {
       id: s.nextId++,
       floor,
       seat,
       item: item.id,
       phase: 'walk',
-      t: this.content.cafe.customers.walkIn,
+      t: cfg.customers.walkIn,
       patience,
       maxPatience: patience,
       vip: vip || undefined,
       look: this.rng.int(0, 5),
     };
+    if (kind === 'mouse') {
+      // The cheapest thing on the menu, for a tiny guest.
+      c.kind = 'mouse';
+      c.item = menu[0].id;
+    } else if (!vip && s.vipOn) this.dressUp(c, floor);
+    const g = c.kind ? cfg.guests[c.kind] : null;
+    if (g) c.patience = c.maxPatience = c.patience * g.patience;
+    else if (c.item2) c.patience = c.maxPatience = c.patience * cfg.lift.patience;
+    if (s.tour) c.tourist = true;
     s.rng = this.rng.state;
     s.customers.push(c);
     events.push({ type: 'spawn', customer: c });
   }
 
+  /**
+   * Who this customer is (v2), after the tutorial: a giraffe (orders from the floor above), an elephant
+   * (two seats, two servings), a dumbwaiter set (one item from another floor), a mood, or plain.
+   */
+  private dressUp(c: Customer, floor: number) {
+    const s = this.s;
+    const cfg = this.content.cafe;
+    const g = cfg.guests;
+    const r = this.rng.next();
+    let acc = g.giraffe.chance;
+    const above = floor + 1 < s.floors.length && s.floors[floor + 1].open ? this.menuOf(floor + 1) : [];
+    if (r < acc) {
+      if (above.length && s.served >= g.giraffe.fromServed) {
+        c.kind = 'giraffe';
+        c.item = this.rng.pick(above).id;
+      }
+      return;
+    }
+    acc += g.elephant.chance;
+    if (r < acc) {
+      const taken = this.takenSeats(floor);
+      const next = c.seat + 1;
+      if (s.served >= g.elephant.fromServed && next < s.floors[floor].seats && !taken.has(next)) {
+        c.kind = 'elephant';
+        c.seat2 = next;
+        c.need = g.elephant.servings ?? 2;
+        c.got = 0;
+      }
+      return;
+    }
+    acc += cfg.lift.chance;
+    if (r < acc) {
+      if (this.stat('lift') >= 1) {
+        const others = s.floors.flatMap((f, i) => (f.open && i !== floor ? this.menuOf(i) : []));
+        if (others.length) c.item2 = this.rng.pick(others).id;
+      }
+      return;
+    }
+    acc += cfg.moods.chance;
+    if (r < acc && s.served >= cfg.moods.fromServed) {
+      const menu = this.menuOf(floor).map((i) => i.id);
+      const fits = cfg.moods.list.filter((m) => m.items.some((i) => menu.includes(i)));
+      if (!fits.length) return;
+      const mood = this.rng.pick(fits);
+      c.mood = mood.id;
+      c.item = this.rng.pick(mood.items.filter((i) => menu.includes(i)));
+    }
+  }
+
   /** Waiting customer for this item who is closest to leaving. VIPs wait for the player's hand. */
   private neediest(item: string) {
     let best: Customer | null = null;
+    // Sets: helpers serve them only with the dumbwaiter's second level, and when the other item is ready.
+    const lift2 = this.stat('lift') >= 2;
     for (const c of this.s.customers) {
       if (c.item !== item || c.phase !== 'wait' || c.reserved || c.vip) continue;
+      if (c.item2 && (!lift2 || this.s.items[c.item2].ready < 1)) continue;
       if (!best || c.patience < best.patience) best = c;
     }
     return best;
   }
 
-  private serve(c: Customer, hand: boolean, events: CafeEvent[]) {
+  /** What a customer's order is worth before the hand bonus, rush and chain (sets, guests, moods, tourists). */
+  orderValue(c: Customer) {
+    const cfg = this.content.cafe;
+    let v = this.itemValue(c.item);
+    if (c.item2) v = (v + this.itemValue(c.item2)) * (cfg.lift.pay + (this.hasTrait('sets') ? 0.3 : 0));
+    if (c.kind) v *= cfg.guests[c.kind].pay + (c.kind !== 'mouse' && this.hasTrait('giant') ? 0.5 : 0);
+    if (c.mood) v *= cfg.moods.pay + (this.hasTrait('mood') ? 0.5 : 0);
+    if (c.tourist) v *= cfg.tours.pay + (this.hasTrait('tour') ? 0.25 : 0);
+    return v;
+  }
+
+  private serve(c: Customer, hand: boolean, events: CafeEvent[], combo = 0, beat = false) {
     const s = this.s;
     const cfg = this.content.cafe;
-    let coins = this.itemValue(c.item) * (hand ? cfg.handBonus + this.stat('handTip') : 1) * (s.rushLeft > 0 ? cfg.rush.mult : 1);
+    let coins = this.orderValue(c) * (hand ? cfg.handBonus + this.stat('handTip') : 1) * (s.rushLeft > 0 ? cfg.rush.mult : 1) * (hand ? this.comboMult(combo) : 1);
     let vipBonus = 0;
     if (c.vip && hand) {
       vipBonus = Math.max(coins * 5, s.rate * cfg.vip.bonusSeconds);
@@ -757,13 +1164,107 @@ export class Cafe {
     this.addCoins(coins, false);
     s.served += 1;
     if (hand) s.hand = (s.hand ?? 0) + 1;
-    (s.sold ??= {})[c.item] = (s.sold[c.item] ?? 0) + 1;
+    const sold = (s.sold ??= {});
+    sold[c.item] = (sold[c.item] ?? 0) + (c.kind === 'elephant' ? (c.need ?? 2) : 1);
+    let set: string | undefined;
+    if (c.item2) {
+      sold[c.item2] = (sold[c.item2] ?? 0) + 1;
+      set = this.setKey(c.item, c.item2);
+      s.setsServed = (s.setsServed ?? 0) + 1;
+      if (!(s.sets ??= []).includes(set)) s.sets.push(set);
+    }
+    if (c.kind) (s.guests ??= {})[c.kind] = (s.guests[c.kind] ?? 0) + 1;
+    if (c.mood) {
+      const mem = (s.memories ??= []);
+      while (mem.length <= c.floor) mem.push(0);
+      mem[c.floor] += 1;
+    }
+    if (c.tourist && s.tour) s.tour.served += 1;
     s.sales = (s.sales ?? 0) + coins;
     c.phase = 'leave';
     c.t = cfg.customers.leave;
     c.happy = true;
     c.reserved = false;
-    events.push({ type: 'served', customer: c, coins, hand, vipBonus });
+    events.push({ type: 'served', customer: c, coins, hand, vipBonus, combo: hand ? combo : undefined, beat: hand ? beat : undefined, set });
+  }
+
+  // ---------- v2: naps and tour groups ----------
+
+  private stepNaps(dt: number, events: CafeEvent[]) {
+    const s = this.s;
+    const cfg = this.content.cafe.naps;
+    if (s.wake)
+      for (const a of Object.keys(s.wake)) {
+        s.wake[a] -= dt;
+        if (s.wake[a] <= 0) delete s.wake[a];
+      }
+    if (s.naps)
+      for (const a of Object.keys(s.naps)) {
+        s.naps[a] -= dt;
+        if (s.naps[a] <= 0) {
+          delete s.naps[a];
+          events.push({ type: 'woke', animal: a, item: this.stationOf(a) ?? '', natural: true });
+        }
+      }
+    const working = this.working();
+    if (s.calm || working.length < cfg.minStaff) return;
+    // One nap at a time.
+    if (s.naps && Object.keys(s.naps).length) return;
+    s.napTimer = (s.napTimer ?? cfg.everyMax) - dt;
+    if (s.napTimer > 0) return;
+    // Sleepy helpers (koala) doze off three times as often as the others.
+    const weights = working.map(([, a]) => (this.animal(a).trait === 'sleepy' ? 3 : 1));
+    let roll = this.rng.next() * weights.reduce((x, y) => x + y, 0);
+    let pick = working[0];
+    for (let i = 0; i < working.length; i++) {
+      roll -= weights[i];
+      if (roll < 0) {
+        pick = working[i];
+        break;
+      }
+    }
+    const [item, animal] = pick;
+    (s.naps ??= {})[animal] = cfg.maxNap;
+    s.napTimer = cfg.everyMin + this.rng.next() * (cfg.everyMax - cfg.everyMin);
+    s.rng = this.rng.state;
+    events.push({ type: 'nap', animal, item });
+  }
+
+  /** Tour groups come once the floor in tours.afterFloor is open (and not during the first-time tutorial). */
+  toursOn() {
+    const i = this.content.cafe.floors.findIndex((f) => f.id === this.content.cafe.tours.afterFloor);
+    return i >= 0 && this.s.floors[i].open && !this.s.calm;
+  }
+
+  private stepTour(dt: number, events: CafeEvent[]) {
+    const s = this.s;
+    const cfg = this.content.cafe.tours;
+    if (s.tour) {
+      s.tour.left -= dt;
+      if (s.tour.left > 0) return;
+      const t = s.tour;
+      s.tour = null;
+      const success = t.served >= t.need;
+      const coins = success ? Math.max(cfg.rewardMin, Math.round(Math.max(0, s.rate) * cfg.rewardSec)) : 0;
+      if (coins) {
+        this.addCoins(coins, false);
+        s.tours = (s.tours ?? 0) + 1;
+      }
+      s.tourTimer = cfg.everyMin + this.rng.next() * (cfg.everyMax - cfg.everyMin);
+      s.rng = this.rng.state;
+      events.push({ type: 'tourEnd', success, coins, served: t.served, need: t.need });
+      return;
+    }
+    if (!this.toursOn()) return;
+    s.tourTimer = (s.tourTimer ?? cfg.firstAfter) - dt;
+    if (s.tourTimer > 0) return;
+    // More floors open, a bigger group.
+    const floors = s.floors.filter((f) => f.open).length;
+    const need = Math.round((cfg.need * floors) / 2);
+    s.tour = { left: cfg.seconds, served: 0, need };
+    // The first tourists walk in right away.
+    for (const f of s.floors) if (f.open) f.spawnTimer = Math.min(f.spawnTimer, 0.3);
+    events.push({ type: 'tourStart', need, seconds: cfg.seconds });
   }
 
   addCoins(n: number, countRate = true) {
@@ -825,9 +1326,37 @@ export class Cafe {
 
   // ---------- short tasks ----------
 
-  /** Decor tasks need the decorations of the main cafe; a timed run skips them. */
+  /**
+   * Decor tasks need the decorations of the main cafe; a timed run skips them. The best-friends task
+   * is skipped when no pair of friends is on the staff (it could not be done).
+   */
   private taskApplies(t: TaskDef) {
-    return !(t.type === 'decor' && this.s.mode !== 'main');
+    if (t.type === 'decor' && this.s.mode !== 'main') return false;
+    if (t.type === 'friends' && !this.ownsPair()) return false;
+    return true;
+  }
+
+  /** At least one pair of best friends is on the staff. */
+  ownsPair() {
+    return this.content.staff.friends.pairs.some(([a, b]) => this.s.staff[a] && this.s.staff[b]);
+  }
+
+  /**
+   * A swap of two stations that brings a pair of best friends onto one floor, or null.
+   * (Task hint, and what the simulated player does for the friends task.)
+   */
+  friendSwap(): [string, string] | null {
+    if (this.activePairs().length) return null;
+    const stations = this.content.cafe.items.filter((i) => this.s.items[i.id].unlocked).map((i) => i.id);
+    for (const [a, b] of this.content.staff.friends.pairs) {
+      const sa = this.stationOf(a);
+      const sb = this.stationOf(b);
+      if (!sa || !sb) continue;
+      // Move b next to a: onto the other station of a's floor.
+      const mate = stations.find((x) => x !== sa && this.floorIndexOf(x) === this.floorIndexOf(sa));
+      if (mate) return [sb, mate];
+    }
+    return null;
   }
 
   /**
@@ -890,6 +1419,20 @@ export class Cafe {
         return { have: this.decorCount, need: n };
       case 'earned':
         return { have: s.totalEarned, need: n };
+      case 'combo':
+        return { have: Math.min(s.bestCombo ?? 0, n), need: n };
+      case 'wakes':
+        return { have: s.wakes ?? 0, need: n };
+      case 'moods':
+        return { have: (s.memories ?? []).reduce((a, b) => a + b, 0), need: n };
+      case 'guests':
+        return { have: Object.values(s.guests ?? {}).reduce((a, b) => a + (b ?? 0), 0), need: n };
+      case 'sets':
+        return { have: s.setsServed ?? 0, need: n };
+      case 'tours':
+        return { have: s.tours ?? 0, need: n };
+      case 'friends':
+        return { have: Math.min(this.activePairs().length, n), need: n };
     }
   }
 

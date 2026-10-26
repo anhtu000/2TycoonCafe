@@ -47,68 +47,108 @@
       "id": "capybara",
       "rarity": "common",
       "perk": "speed",
-      "perkValue": 1.1
+      "perkValue": 1.1,
+      "trait": "calm"
     },
     {
       "id": "hamster",
       "rarity": "common",
       "perk": "speed",
-      "perkValue": 1.15
+      "perkValue": 1.15,
+      "trait": "combo"
     },
     {
       "id": "bunny",
       "rarity": "common",
       "perk": "tips",
-      "perkValue": 1.1
+      "perkValue": 1.1,
+      "trait": "quick"
     },
     {
       "id": "cat",
       "rarity": "common",
       "perk": "tips",
-      "perkValue": 1.15
+      "perkValue": 1.15,
+      "trait": "mood"
     },
     {
       "id": "shiba",
       "rarity": "rare",
       "perk": "speed",
-      "perkValue": 1.15
+      "perkValue": 1.15,
+      "trait": "vip"
     },
     {
       "id": "penguin",
       "rarity": "rare",
       "perk": "tips",
-      "perkValue": 1.2
+      "perkValue": 1.2,
+      "trait": "cool"
     },
     {
       "id": "koala",
       "rarity": "rare",
       "perk": "speed",
-      "perkValue": 1.1
+      "perkValue": 1.1,
+      "trait": "sleepy"
     },
     {
       "id": "redpanda",
       "rarity": "epic",
       "perk": "speed",
-      "perkValue": 1.2
+      "perkValue": 1.2,
+      "trait": "tour"
     },
     {
       "id": "panda",
       "rarity": "epic",
       "perk": "tips",
-      "perkValue": 1.25
+      "perkValue": 1.25,
+      "trait": "sets"
     },
     {
       "id": "axolotl",
       "rarity": "legendary",
       "perk": "tips",
-      "perkValue": 1.3
+      "perkValue": 1.3,
+      "trait": "giant"
     },
     {
       "id": "snowfox",
       "rarity": "legendary",
       "perk": "speed",
       "perkValue": 1.25,
-      "exclusive": "daily"
+      "exclusive": "daily",
+      "trait": "cheer"
     }
-  ]
+  ],
+  "friends": {
+    "bonus": 1.2,
+    "pairs": [
+      [
+        "capybara",
+        "hamster"
+      ],
+      [
+        "bunny",
+        "cat"
+      ],
+      [
+        "shiba",
+        "snowfox"
+      ],
+      [
+        "penguin",
+        "axolotl"
+      ],
+      [
+        "panda",
+        "redpanda"
+      ],
+      [
+        "koala",
+        "capybara"
+      ]
+    ]
+  }
 }

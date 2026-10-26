@@ -85,6 +85,18 @@
       }
     },
     {
+      "id": "lift",
+      "stat": "lift",
+      "op": "add",
+      "value": 1,
+      "max": 2,
+      "cost": 60000,
+      "growth": 40,
+      "show": {
+        "floor": "bakery"
+      }
+    },
+    {
       "id": "nightshift",
       "stat": "offlineHours",
       "op": "add",
